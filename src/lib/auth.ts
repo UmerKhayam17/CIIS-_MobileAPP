@@ -1,6 +1,7 @@
 import { getItem, setItem, removeItem, getJson, setJson } from "./storage"
 import { setTokenCache } from "./api"
 import { clearAllEvents } from "./queue"
+import { resetCallLogState } from "./call-log"
 
 const AUTH_TOKEN_KEY = "pakistan_customs_token"
 const AUTH_USER_KEY = "pakistan_customs_user"
@@ -64,6 +65,8 @@ export async function clearAuth(): Promise<void> {
   await removeItem(LOG_QUEUE_KEY)
   // Wipe the buffered events so nothing uploads under the next user on a shared phone.
   await clearAllEvents()
+  // Drop the call-log cursor + disclosure so the next user starts clean and re-consents.
+  await resetCallLogState()
 }
 
 export function displayName(user: AuthUser | null): string {

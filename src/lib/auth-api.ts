@@ -33,11 +33,13 @@ export async function login(username: string, password: string): Promise<LoginRe
         non_field_errors?: string[]
         username?: string[]
         password?: string[]
+        device_uuid?: string | string[]
       }
       if (typeof data.detail === "string") message = data.detail
       else if (data.non_field_errors?.[0]) message = data.non_field_errors[0]
       else if (data.username?.[0]) message = data.username[0]
       else if (data.password?.[0]) message = data.password[0]
+      else if (data.device_uuid) message = Array.isArray(data.device_uuid) ? data.device_uuid[0] : data.device_uuid
     } catch {
       /* keep default */
     }

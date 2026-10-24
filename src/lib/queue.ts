@@ -11,6 +11,7 @@ export type OfflineEventType =
   | "attendance"
   | "logout"
   | "mobile_event"
+  | "call_log"
 
 export type OfflineEvent = {
   event_id: string

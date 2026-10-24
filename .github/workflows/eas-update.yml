@@ -1,0 +1,31 @@
+# Publishes an over-the-air update to installed preview APKs on every push to main.
+# Requires the EXPO_TOKEN repository secret (expo.dev → Account settings → Access tokens).
+# Native changes (new native packages, permissions, app.json plugins) still need a new APK.
+name: EAS Update
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      - run: eas update --channel preview --environment preview --message "$MESSAGE" --non-interactive
+        env:
+          MESSAGE: ${{ github.event.head_commit.message || 'Manual update' }}

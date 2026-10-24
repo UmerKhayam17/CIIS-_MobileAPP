@@ -8,8 +8,9 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://dcf0566debd24d.lhr.life"
-      }
+        "EXPO_PUBLIC_API_BASE_URL": "http://192.168.88.45:8000"
+      },
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
@@ -21,7 +22,7 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://dcf0566debd24d.lhr.life"
+        "EXPO_PUBLIC_API_BASE_URL": "http://192.168.88.45:8000"
       }
     },
     "production": {

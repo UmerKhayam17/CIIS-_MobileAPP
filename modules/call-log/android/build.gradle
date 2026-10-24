@@ -1,0 +1,25 @@
+apply plugin: 'com.android.library'
+
+group = 'expo.modules.calllog'
+version = '0.1.0'
+
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useExpoPublishing()
+
+// Use the Android SDK / Kotlin versions managed by expo-modules-core so this
+// local module always matches the SDK the app is built with.
+useDefaultAndroidSdkVersions()
+
+android {
+  namespace "expo.modules.calllog"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}

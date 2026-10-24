@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react"
-import { View, Image, ActivityIndicator, AppState, Platform, type AppStateStatus } from "react-native"
+import { View, Image, ActivityIndicator, AppState, Platform, StyleSheet, type AppStateStatus } from "react-native"
 import { StatusBar } from "expo-status-bar"
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context"
 import { NavigationContainer } from "@react-navigation/native"
@@ -10,7 +10,9 @@ import { HeaderBrand } from "./src/ui"
 import { isAuthenticated, loadStoredUser, canViewAllStaff, shouldTrackLocation, getCachedUser } from "./src/lib/auth"
 import { flushOfflineQueue, sendHeartbeat, transitionMobileSession } from "./src/lib/mobile"
 import { startTracking } from "./src/lib/location"
+import { shouldCollectCalls, getCallLogConsent, syncCallLog } from "./src/lib/call-log"
 import LoginScreen from "./src/screens/LoginScreen"
+import CallLogConsentScreen from "./src/screens/CallLogConsentScreen"
 import HomeScreen from "./src/screens/HomeScreen"
 import LocationScreen from "./src/screens/LocationScreen"
 import AttendanceScreen from "./src/screens/AttendanceScreen"
@@ -106,6 +108,7 @@ function Tabs({ onSignOut }: { onSignOut: () => void }) {
 
 export default function App() {
   const [authed, setAuthed] = useState<boolean | null>(null)
+  const [showCallConsent, setShowCallConsent] = useState(false)
   const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -117,6 +120,21 @@ export default function App() {
     })()
   }, [])
 
+  // Call-log collection for field staff (Android): show the one-time disclosure, or resume
+  // syncing if already agreed. No-op on web, in Expo Go, and for desk/admin accounts.
+  useEffect(() => {
+    if (!authed) {
+      setShowCallConsent(false)
+      return
+    }
+    void (async () => {
+      if (!shouldCollectCalls()) return
+      const consent = await getCallLogConsent()
+      if (consent === "none") setShowCallConsent(true)
+      else if (consent === "granted") void syncCallLog()
+    })()
+  }, [authed])
+
   // Foreground sync + lightweight heartbeat while signed in.
   useEffect(() => {
     if (!authed) return
@@ -126,6 +144,7 @@ export default function App() {
     const onState = (state: AppStateStatus) => {
       if (state === "active") {
         void flushOfflineQueue()
+        void syncCallLog()
         void sendHeartbeat({ app_state: "foreground" })
         void transitionMobileSession("using")
       } else if (state === "background") {
@@ -153,9 +172,16 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="light" />
       {authed ? (
-        <NavigationContainer>
-          <Tabs onSignOut={() => setAuthed(false)} />
-        </NavigationContainer>
+        <View style={{ flex: 1 }}>
+          <NavigationContainer>
+            <Tabs onSignOut={() => setAuthed(false)} />
+          </NavigationContainer>
+          {showCallConsent ? (
+            <View style={StyleSheet.absoluteFill}>
+              <CallLogConsentScreen onDone={() => setShowCallConsent(false)} />
+            </View>
+          ) : null}
+        </View>
       ) : (
         <LoginScreen onAuthed={() => setAuthed(true)} />
       )}

@@ -161,6 +161,7 @@ async function uploadEvent(item: OfflineEvent): Promise<boolean> {
     lock: `${API_BASE_URL}/api/mobile-sessions/transition/`,
     attendance: `${API_BASE_URL}/api/attendance/`,
     mobile_event: `${API_BASE_URL}/api/mobile-events/`,
+    call_log: `${API_BASE_URL}/api/v1/employee-monitor/calls/ingest/`,
   }
   const url = endpoints[item.event_type] || endpoints.mobile_event
   const res = await postMobileJson(url, {
