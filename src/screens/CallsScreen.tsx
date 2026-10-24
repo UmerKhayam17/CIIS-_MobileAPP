@@ -5,11 +5,18 @@ import { colors, radius, shadow } from "../theme"
 import { fetchCalls, type CallRecord } from "../lib/calls-api"
 import { requestPlayback } from "../lib/recordings-api"
 import { isUnavailable, type FeatureUnavailable } from "../lib/monitor-api"
-import { formatDuration, formatTime, shiftIso, todayIso } from "../lib/format"
+import { formatDuration, formatTime, todayIso } from "../lib/format"
 import { canViewAllStaff } from "../lib/auth"
 import { EmptyState, ErrorBanner, FilterChip, KpiTile, Loading, ScreenTitle, UnavailableState } from "../ui"
 
 type DirFilter = "all" | "inbound" | "outbound" | "missed"
+type RangeKey = "today" | "7d" | "30d"
+
+const RANGES: { key: RangeKey; label: string }[] = [
+  { key: "today", label: "Today" },
+  { key: "7d", label: "7 days" },
+  { key: "30d", label: "30 days" },
+]
 
 const DIR_META: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string; label: string }> = {
   inbound: { icon: "arrow-down-outline", color: colors.good, label: "Incoming" },
@@ -28,7 +35,9 @@ const REC_META: Record<string, { label: string; bg: string; fg: string }> = {
 
 export default function CallsScreen() {
   const overview = canViewAllStaff()
-  const [date, setDate] = useState(todayIso())
+  // Default to a 7-day window: a freshly-synced phone uploads its past call history dated on
+  // earlier days, so a "today only" default would look empty even when records exist.
+  const [range, setRange] = useState<RangeKey>("7d")
   const [rows, setRows] = useState<CallRecord[]>([])
   const [dir, setDir] = useState<DirFilter>("all")
   const [query, setQuery] = useState("")
@@ -40,7 +49,8 @@ export default function CallsScreen() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const page = await fetchCalls({ date })
+      const params = range === "today" ? { date: todayIso() } : { days: range === "7d" ? 7 : 30 }
+      const page = await fetchCalls(params)
       setRows(page.results)
       setError("")
       setUnavailable(null)
@@ -51,7 +61,7 @@ export default function CallsScreen() {
     } finally {
       setLoading(false)
     }
-  }, [date])
+  }, [range])
 
   useEffect(() => {
     void load()
@@ -88,8 +98,6 @@ export default function CallsScreen() {
     [rows],
   )
 
-  const dateLabel = new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
-
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <FlatList
@@ -100,19 +108,18 @@ export default function CallsScreen() {
           <View style={{ gap: 12, marginBottom: 2 }}>
             <ScreenTitle
               title={overview ? "Staff calls" : "My calls"}
-              subtitle="Call records come from an approved telephony source, never from the phone itself."
+              subtitle="Numbers, direction, time and duration from the phone call log — never audio."
             />
-            <View style={s.dateBar}>
-              <Pressable style={s.dateBtn} onPress={() => setDate((d) => shiftIso(d, -1))}>
-                <Ionicons name="chevron-back" size={20} color={colors.gold} />
-              </Pressable>
-              <View style={s.dateCenter}>
-                <Ionicons name="call-outline" size={16} color={colors.goldLight} />
-                <Text style={s.dateLabel}>{dateLabel}</Text>
-              </View>
-              <Pressable style={s.dateBtn} onPress={() => setDate((d) => shiftIso(d, 1))}>
-                <Ionicons name="chevron-forward" size={20} color={colors.gold} />
-              </Pressable>
+            <View style={s.rangeBar}>
+              {RANGES.map((r) => (
+                <Pressable
+                  key={r.key}
+                  style={[s.rangeBtn, range === r.key && s.rangeBtnActive]}
+                  onPress={() => setRange(r.key)}
+                >
+                  <Text style={[s.rangeText, range === r.key && s.rangeTextActive]}>{r.label}</Text>
+                </Pressable>
+              ))}
             </View>
 
             {!loading && !error && !unavailable ? (
@@ -143,7 +150,7 @@ export default function CallsScreen() {
         }
         ListEmptyComponent={
           !loading && !error && !unavailable ? (
-            <EmptyState icon="call-outline" title="No calls" description="No call records from the connected source for this date." />
+            <EmptyState icon="call-outline" title="No calls" description="No call records for this period yet." />
           ) : null
         }
         renderItem={({ item }) => {
@@ -186,10 +193,11 @@ export default function CallsScreen() {
 }
 
 const s = StyleSheet.create({
-  dateBar: { flexDirection: "row", alignItems: "center", backgroundColor: colors.navy, borderRadius: radius.md, padding: 6, ...shadow },
-  dateBtn: { width: 44, height: 44, borderRadius: radius.sm, backgroundColor: "rgba(255,255,255,0.07)", alignItems: "center", justifyContent: "center" },
-  dateCenter: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
-  dateLabel: { fontWeight: "700", color: "#fff" },
+  rangeBar: { flexDirection: "row", alignItems: "center", backgroundColor: colors.navy, borderRadius: radius.md, padding: 6, gap: 6, ...shadow },
+  rangeBtn: { flex: 1, height: 40, borderRadius: radius.sm, backgroundColor: "rgba(255,255,255,0.07)", alignItems: "center", justifyContent: "center" },
+  rangeBtnActive: { backgroundColor: colors.gold },
+  rangeText: { fontWeight: "700", color: "rgba(255,255,255,0.82)", fontSize: 13 },
+  rangeTextActive: { color: colors.navy },
   searchWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, height: 46 },
   search: { flex: 1, color: colors.text },
   card: { flexDirection: "row", gap: 12, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 14, ...shadow },

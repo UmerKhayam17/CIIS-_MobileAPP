@@ -23,9 +23,10 @@ export type CallsPage = {
   next_cursor?: string | null
 }
 
-export function fetchCalls(params?: { date?: string; username?: string; cursor?: string }): Promise<CallsPage> {
+export function fetchCalls(params?: { date?: string; days?: number; username?: string; cursor?: string }): Promise<CallsPage> {
   const sp = new URLSearchParams()
   if (params?.date) sp.set("date", params.date)
+  if (params?.days) sp.set("days", String(params.days))
   if (params?.username) sp.set("username", params.username)
   if (params?.cursor) sp.set("cursor", params.cursor)
   const qs = sp.toString()
