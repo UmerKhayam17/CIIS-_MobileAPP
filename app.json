@@ -50,6 +50,14 @@
     },
     "plugins": [
       [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      [
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "CIIS keeps sharing your duty location in the background so your route is recorded throughout your shift.",
@@ -57,7 +65,8 @@
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "eas": {
