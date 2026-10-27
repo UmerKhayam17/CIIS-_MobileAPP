@@ -87,6 +87,7 @@ class ScreenShareModule : Module() {
 
     val manager = ctx.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
     val mp = manager.getMediaProjection(resultCode, data)
+      ?: throw IllegalStateException("Unable to obtain a media projection")
     mp.registerCallback(object : MediaProjection.Callback() {
       override fun onStop() {
         stopCapture()
