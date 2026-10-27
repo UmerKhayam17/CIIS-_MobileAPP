@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["CallLogModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.calllog.CallLogModule"]
+  }
+}

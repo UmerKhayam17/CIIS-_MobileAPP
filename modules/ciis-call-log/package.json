@@ -1,0 +1,10 @@
+{
+  "name": "ciis-call-log",
+  "version": "0.1.0",
+  "main": "src/index.ts",
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

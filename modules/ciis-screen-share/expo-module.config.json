@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["ScreenShareModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.screenshare.ScreenShareModule"]
+  }
+}
