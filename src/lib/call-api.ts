@@ -23,6 +23,8 @@ export type MonitorConsent = {
   status: "acknowledged" | "withdrawn" | "none"
   policy_version: string | null
   effective_at: string | null
+  /** Absent on older servers, which did not report the per-category opt-ins. */
+  disclosed_categories?: string[]
 }
 
 export type CallRecord = {
@@ -124,6 +126,31 @@ export async function postMonitorConsent(
   })
   if (!res.ok) throw await parseError(res)
   return (await res.json()) as MonitorConsent
+}
+
+/**
+ * Opt one category in or out without touching the others. The server keeps a single
+ * "latest wins" consent row, so posting only this category would silently withdraw the rest.
+ */
+export async function setConsentCategory(
+  policy: MonitorPolicy,
+  category: string,
+  enabled: boolean,
+): Promise<MonitorConsent> {
+  const current = await fetchMonitorConsent()
+  const kept =
+    current.status === "acknowledged" && current.policy_version === policy.policy_version
+      ? current.disclosed_categories ?? []
+      : []
+  const next = enabled ? Array.from(new Set([...kept, category])) : kept.filter((c) => c !== category)
+  return postMonitorConsent(policy.policy_id, next.length ? "acknowledge" : "withdraw", next)
+}
+
+/** True when the current consent covers this category under this policy. */
+export function consentCovers(consent: MonitorConsent | null, policy: MonitorPolicy | null, category: string): boolean {
+  if (!consent || !policy) return false
+  if (consent.status !== "acknowledged" || consent.policy_version !== policy.policy_version) return false
+  return consent.disclosed_categories?.includes(category) ?? true
 }
 
 export async function fetchCallRecords(params?: { date?: string; username?: string }): Promise<CallListResponse> {

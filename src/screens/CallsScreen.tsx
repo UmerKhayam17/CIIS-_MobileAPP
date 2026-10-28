@@ -11,7 +11,8 @@ import {
   fetchMonitorConsent,
   fetchMonitorPolicy,
   policyAllowsHandset,
-  postMonitorConsent,
+  consentCovers,
+  setConsentCategory,
   type CallRecord,
   type MonitorConsent,
   type MonitorPolicy,
@@ -86,14 +87,14 @@ export default function CallsScreen() {
   }, [load])
 
   const handsetAllowed = policyAllowsHandset(policy)
-  const acknowledged = consent?.status === "acknowledged" && consent.policy_version === policy?.policy_version
+  const acknowledged = consentCovers(consent, policy, "android_call_history")
 
   async function acknowledge() {
     if (!policy || busy || !agreed) return
     setBusy(true)
     setNotice("")
     try {
-      const next = await postMonitorConsent(policy.policy_id, "acknowledge", ["android_call_history"])
+      const next = await setConsentCategory(policy, "android_call_history", true)
       setConsent(next)
       setNotice("Acknowledgment saved. Allow call history on this phone to start uploading.")
     } catch (err) {
@@ -107,7 +108,7 @@ export default function CallsScreen() {
     if (!policy || busy) return
     setBusy(true)
     try {
-      const next = await postMonitorConsent(policy.policy_id, "withdraw", ["android_call_history"])
+      const next = await setConsentCategory(policy, "android_call_history", false)
       await clearCallQueue()
       setConsent(next)
       setNotice("Call history upload from this phone has stopped.")

@@ -9,10 +9,10 @@ import { startTracking, stopTracking, useTrackingStatus } from "../lib/location"
 import {
   fetchMonitorPolicy,
   policyAllowsCategory,
-  postMonitorConsent,
+  setConsentCategory,
   type MonitorPolicy,
 } from "../lib/call-api"
-import { isOptedIn, optedInCategories, setOptIn, type MonitorCategoryKey } from "../lib/monitor-prefs"
+import { isOptedIn, setOptIn, type MonitorCategoryKey } from "../lib/monitor-prefs"
 import { appUsageSupported, openUsageAccessSettings, syncAppUsage, usageAccessState } from "../lib/app-usage-sync"
 import { captureInAppScreen } from "../lib/screen-capture"
 import { beginScreenShare, endScreenShare, screenShareSupported } from "../lib/screen-share"
@@ -164,9 +164,7 @@ function MonitoringSection() {
     setNote("")
     try {
       await setOptIn(category, value)
-      const cats = await optedInCategories()
-      // Latest consent row wins; re-send the full set the employee has chosen.
-      await postMonitorConsent(policy!.policy_id, cats.length ? "acknowledge" : "withdraw", cats)
+      await setConsentCategory(policy!, category, value)
       setOpts((prev) => ({ ...prev, [category]: value }))
       if (category === "app_usage" && value) {
         if (usageAccessState() === "denied") {
