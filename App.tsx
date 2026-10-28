@@ -7,7 +7,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs"
 import { Ionicons } from "@expo/vector-icons"
 import { colors } from "./src/theme"
 import { isAuthenticated, loadStoredUser, canViewAllStaff, shouldTrackLocation, getCachedUser } from "./src/lib/auth"
-import { flushOfflineQueue, sendHeartbeat, transitionMobileSession } from "./src/lib/mobile"
+import { flushOfflineQueue, sendHeartbeat, sendMobileEvent, transitionMobileSession } from "./src/lib/mobile"
 import { syncPermittedCallLogs } from "./src/lib/call-sync"
 import { syncAppUsage } from "./src/lib/app-usage-sync"
 import { startTracking } from "./src/lib/location"
@@ -20,6 +20,18 @@ import CallsScreen from "./src/screens/CallsScreen"
 import SettingsScreen from "./src/screens/SettingsScreen"
 
 const Tab = createBottomTabNavigator()
+
+// Skips the employee chose (or that are expected) stay quiet; anything else is logged so
+// the control room can see why call/app-usage data is not arriving.
+const QUIET_SKIPS = new Set(["", "busy", "ios", "optout", "network"])
+
+function syncHandsetData() {
+  const report = (kind: string) => (result: { skipped: string }) => {
+    if (!QUIET_SKIPS.has(result.skipped)) void sendMobileEvent(`${kind}_SYNC_SKIPPED: ${result.skipped}`.slice(0, 200))
+  }
+  void syncPermittedCallLogs().then(report("CALL"))
+  void syncAppUsage().then(report("APP_USAGE"))
+}
 
 const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Home: "grid-outline",
@@ -70,14 +82,12 @@ export default function App() {
     if (!authed) return
     const beat = () => void sendHeartbeat()
     beat()
-    void syncPermittedCallLogs()
-    void syncAppUsage()
+    syncHandsetData()
     heartbeat.current = setInterval(beat, 45000)
     const onState = (state: AppStateStatus) => {
       if (state === "active") {
         void flushOfflineQueue()
-        void syncPermittedCallLogs()
-        void syncAppUsage()
+        syncHandsetData()
         void sendHeartbeat({ app_state: "foreground" })
         void transitionMobileSession("using")
       } else if (state === "background") {

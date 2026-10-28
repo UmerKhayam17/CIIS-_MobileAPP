@@ -1,5 +1,6 @@
 import { PermissionsAndroid, Platform } from "react-native"
 import { loadCallLogModule, type DeviceCallRow } from "../../modules/ciis-call-log/src"
+import { isNetworkError } from "./api"
 import { getOrCreateDeviceUuid } from "./device"
 import {
   MonitorApiError,
@@ -108,7 +109,9 @@ export async function syncPermittedCallLogs(): Promise<{ uploaded: number; skipp
       await clearCallQueue()
       return { uploaded: 0, skipped: err.code || "blocked" }
     }
-    return { uploaded: 0, skipped: "network" }
+    if (isNetworkError(err)) return { uploaded: 0, skipped: "network" }
+    // Native read failures used to be reported as "network"; keep the real cause visible.
+    return { uploaded: 0, skipped: `error: ${err instanceof Error ? err.message : String(err)}` }
   } finally {
     syncing = false
   }

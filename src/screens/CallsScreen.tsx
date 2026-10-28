@@ -139,6 +139,9 @@ export default function CallsScreen() {
       else if (result.skipped === "build") setNotice("This install cannot read call history. Use a CIIS development build, not Expo Go.")
       else if (result.skipped === "policy") setNotice("The published policy does not include Android call history yet.")
       else if (result.skipped === "network") setNotice("Saved on this phone. CIIS will upload when the connection returns.")
+      else if (result.skipped === "consent") setNotice("Acknowledge the current policy above before call history can upload.")
+      else if (result.skipped === "permission") setNotice("Allow call history for CIIS to start uploading.")
+      else if (result.skipped) setNotice(`Call history could not upload (${result.skipped}).`)
       else setNotice(result.uploaded ? `Uploaded ${result.uploaded} new call${result.uploaded === 1 ? "" : "s"}.` : "Call history is up to date.")
       await load()
     } finally {

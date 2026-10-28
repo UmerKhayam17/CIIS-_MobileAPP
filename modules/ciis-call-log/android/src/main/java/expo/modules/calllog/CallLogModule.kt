@@ -44,7 +44,8 @@ class CallLogModule : Module() {
       columns.toTypedArray(),
       "${CallLog.Calls.DATE} >= ?",
       arrayOf(sinceMillis.toString()),
-      "${CallLog.Calls.DATE} DESC LIMIT 200",
+      // No "LIMIT" here: Android 11+ rejects it in the call-log sort order ("Invalid token LIMIT").
+      "${CallLog.Calls.DATE} DESC",
     )?.use { cursor ->
       val idIdx = cursor.getColumnIndex(CallLog.Calls._ID)
       val numberIdx = cursor.getColumnIndex(CallLog.Calls.NUMBER)
@@ -52,7 +53,7 @@ class CallLogModule : Module() {
       val dateIdx = cursor.getColumnIndex(CallLog.Calls.DATE)
       val durationIdx = cursor.getColumnIndex(CallLog.Calls.DURATION)
       val accountIdx = if (includeAccount) cursor.getColumnIndex(CallLog.Calls.PHONE_ACCOUNT_ID) else -1
-      while (cursor.moveToNext()) {
+      while (rows.size < MAX_ROWS && cursor.moveToNext()) {
         val id = if (idIdx >= 0) cursor.getLong(idIdx).toString() else ""
         if (id.isEmpty()) continue
         val type = if (typeIdx >= 0) cursor.getInt(typeIdx) else 0
@@ -71,6 +72,10 @@ class CallLogModule : Module() {
       }
     }
     return rows
+  }
+
+  private companion object {
+    const val MAX_ROWS = 200
   }
 
   private fun directionFor(type: Int): String {
