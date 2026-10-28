@@ -12,6 +12,8 @@ import { syncPermittedCallLogs } from "./src/lib/call-sync"
 import { syncAppUsage } from "./src/lib/app-usage-sync"
 import { startTracking } from "./src/lib/location"
 import LoginScreen from "./src/screens/LoginScreen"
+import OnboardingScreen from "./src/screens/OnboardingScreen"
+import { onboardingComplete } from "./src/lib/onboarding"
 import HomeScreen from "./src/screens/HomeScreen"
 import LocationScreen from "./src/screens/LocationScreen"
 import AttendanceScreen from "./src/screens/AttendanceScreen"
@@ -66,12 +68,14 @@ function Tabs({ onSignOut }: { onSignOut: () => void }) {
 
 export default function App() {
   const [authed, setAuthed] = useState<boolean | null>(null)
+  const [needsOnboarding, setNeedsOnboarding] = useState(false)
   const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     void (async () => {
       await loadStoredUser()
       const ok = await isAuthenticated()
+      if (ok) setNeedsOnboarding(!(await onboardingComplete(getCachedUser()?.id)))
       setAuthed(ok)
       if (ok && shouldTrackLocation()) void startTracking()
     })()
@@ -114,11 +118,25 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="dark" />
       {authed ? (
-        <NavigationContainer>
-          <Tabs onSignOut={() => setAuthed(false)} />
-        </NavigationContainer>
+        needsOnboarding ? (
+          <OnboardingScreen userId={getCachedUser()?.id ?? null} onDone={() => setNeedsOnboarding(false)} />
+        ) : (
+          <NavigationContainer>
+            <Tabs
+              onSignOut={() => {
+                setNeedsOnboarding(false)
+                setAuthed(false)
+              }}
+            />
+          </NavigationContainer>
+        )
       ) : (
-        <LoginScreen onAuthed={() => setAuthed(true)} />
+        <LoginScreen
+          onAuthed={async () => {
+            setNeedsOnboarding(!(await onboardingComplete(getCachedUser()?.id)))
+            setAuthed(true)
+          }}
+        />
       )}
     </SafeAreaProvider>
   )
