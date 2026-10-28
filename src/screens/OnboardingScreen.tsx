@@ -2,14 +2,17 @@ import React, { useEffect, useState } from "react"
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Platform } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { colors, radius } from "../theme"
-import { fetchMonitorPolicy, policyAllowsHandset, type MonitorPolicy } from "../lib/call-api"
+import { fetchMonitorPolicy, policyAllowsCategory, policyAllowsHandset, type MonitorPolicy } from "../lib/call-api"
 import { markOnboardingComplete, optInCategoriesFor, runGuidedConsent } from "../lib/onboarding"
+import { CALL_RECORDING_CATEGORY, callRecordingSupported } from "../lib/call-recording-sync"
 
 const CATEGORY_LABELS: Record<string, string> = {
   app_usage: "App usage — which apps you use and for how long during work sessions.",
   in_app_screens: "CIIS screenshots — pictures of the CIIS app's own screens only.",
   screen_share: "Screen share — only when you start it yourself.",
   android_call_history: "Call history — numbers, times and durations of calls. No call audio.",
+  android_call_recording:
+    "Call recordings — the audio files your phone's own dialer saves for work calls. CIIS uploads those files; it does not record calls itself.",
 }
 
 export default function OnboardingScreen({
@@ -38,7 +41,12 @@ export default function OnboardingScreen({
 
   const disclosed = optInCategoriesFor(policy)
   const wantsCalls = policyAllowsHandset(policy) && Platform.OS === "android"
-  const activeKeys = [...disclosed, ...(wantsCalls ? ["android_call_history"] : [])]
+  const wantsRecordings = policyAllowsCategory(policy, CALL_RECORDING_CATEGORY) && callRecordingSupported()
+  const activeKeys = [
+    ...disclosed,
+    ...(wantsCalls ? ["android_call_history"] : []),
+    ...(wantsRecordings ? [CALL_RECORDING_CATEGORY] : []),
+  ]
 
   async function accept() {
     if (busy) return
@@ -101,8 +109,8 @@ export default function OnboardingScreen({
             ))}
             <Text style={s.note}>
               After you accept, Android will ask you to allow call history and to turn on Usage access
-              for app usage. These are one-time steps you control, and you can turn any of them off
-              later in Settings.
+              for app usage{wantsRecordings ? ", and to pick the folder your phone saves call recordings to" : ""}.
+              These are one-time steps you control, and you can turn any of them off later in Settings.
             </Text>
           </View>
         ) : (

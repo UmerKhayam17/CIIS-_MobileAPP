@@ -20,6 +20,13 @@ import {
   syncAppUsage,
   usageAccessState,
 } from "./app-usage-sync"
+import {
+  CALL_RECORDING_CATEGORY,
+  callRecordingSupported,
+  recordingFolderUri,
+  requestRecordingFolder,
+  syncCallRecordings,
+} from "./call-recording-sync"
 
 /**
  * One-time guided consent, run right after the employee accepts the terms. It records their
@@ -52,6 +59,7 @@ export function optInCategoriesFor(policy: MonitorPolicy | null): MonitorCategor
 export type GuidedConsentResult = {
   callLog: "granted" | "denied" | "blocked" | "unavailable" | "skipped"
   appUsage: "granted" | "needs-settings" | "unavailable" | "skipped"
+  callRecording: "granted" | "needs-folder" | "unavailable" | "skipped"
 }
 
 /**
@@ -61,17 +69,24 @@ export type GuidedConsentResult = {
 export async function runGuidedConsent(policy?: MonitorPolicy | null): Promise<GuidedConsentResult> {
   const p = policy ?? (await fetchMonitorPolicy())
 
-  // Disclose every category the policy collects: the Android BYOD features plus call history.
+  // Disclose every category the policy collects: the Android BYOD features plus call history
+  // and (if collected) the phone's own call recordings.
   const disclosed = optInCategoriesFor(p)
   const wantsCalls = policyAllowsHandset(p) && Platform.OS === "android"
-  const categories = [...disclosed, ...(wantsCalls ? ["android_call_history"] : [])]
+  const wantsRecordings =
+    policyAllowsCategory(p, CALL_RECORDING_CATEGORY) && callRecordingSupported()
+  const categories = [
+    ...disclosed,
+    ...(wantsCalls ? ["android_call_history"] : []),
+    ...(wantsRecordings ? [CALL_RECORDING_CATEGORY] : []),
+  ]
 
   if (categories.length) {
     await postMonitorConsent(p.policy_id, "acknowledge", categories)
     for (const key of disclosed) await setOptIn(key, true)
   }
 
-  const result: GuidedConsentResult = { callLog: "skipped", appUsage: "skipped" }
+  const result: GuidedConsentResult = { callLog: "skipped", appUsage: "skipped", callRecording: "skipped" }
 
   // 1) Call history — triggers the OS permission dialog.
   if (wantsCalls) {
@@ -96,9 +111,22 @@ export async function runGuidedConsent(policy?: MonitorPolicy | null): Promise<G
     }
   }
 
+  // 3) Call recordings — ask the officer to point CIIS at the folder their dialer saves to.
+  if (wantsRecordings) {
+    if (!callRecordingSupported()) {
+      result.callRecording = "unavailable"
+    } else if (recordingFolderUri()) {
+      result.callRecording = "granted"
+    } else {
+      const uri = await requestRecordingFolder()
+      result.callRecording = uri ? "granted" : "needs-folder"
+    }
+  }
+
   // Kick off a first sync for whatever is already granted.
   void syncPermittedCallLogs()
   void syncAppUsage()
+  void syncCallRecordings()
 
   return result
 }

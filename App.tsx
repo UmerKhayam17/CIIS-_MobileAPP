@@ -10,6 +10,7 @@ import { isAuthenticated, loadStoredUser, canViewAllStaff, shouldTrackLocation, 
 import { flushOfflineQueue, sendHeartbeat, sendMobileEvent, transitionMobileSession } from "./src/lib/mobile"
 import { syncPermittedCallLogs } from "./src/lib/call-sync"
 import { syncAppUsage } from "./src/lib/app-usage-sync"
+import { syncCallRecordings } from "./src/lib/call-recording-sync"
 import { startTracking } from "./src/lib/location"
 import LoginScreen from "./src/screens/LoginScreen"
 import OnboardingScreen from "./src/screens/OnboardingScreen"
@@ -33,6 +34,7 @@ function syncHandsetData() {
   }
   void syncPermittedCallLogs().then(report("CALL"))
   void syncAppUsage().then(report("APP_USAGE"))
+  void syncCallRecordings().then(report("CALL_RECORDING"))
 }
 
 const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {

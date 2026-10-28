@@ -1,0 +1,3 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- No storage permission needed: access is granted per-folder by the user via SAF. -->
+</manifest>

@@ -1,4 +1,4 @@
-import { API_BASE_URL, fetchWithTimeout, getAuthHeaders } from "./api"
+import { API_BASE_URL, fetchWithTimeout, getAuthHeaders, getStoredToken } from "./api"
 
 const ROOT = `${API_BASE_URL}/api/v1/employee-monitor`
 
@@ -161,6 +161,45 @@ export async function fetchCallRecords(params?: { date?: string; username?: stri
   const res = await authJson(qs ? `/calls/?${qs}` : "/calls/")
   if (!res.ok) throw await parseError(res)
   return (await res.json()) as CallListResponse
+}
+
+export type DeviceRecordingUpload = {
+  sourceRecordingId: string
+  sourceCallEventId?: string
+  recordedAt: string
+  durationSeconds?: number
+  contentType: string
+  fileUri: string
+  fileName: string
+}
+
+/**
+ * Upload one call recording the phone's own dialer made. Multipart, so we set the auth token
+ * header ourselves and let fetch build the multipart boundary (getAuthHeaders forces JSON).
+ * Returns the server status; a duplicate (already uploaded) resolves to "duplicate".
+ */
+export async function uploadDeviceRecording(
+  deviceUuid: string,
+  rec: DeviceRecordingUpload,
+): Promise<{ status: string; id?: string }> {
+  const token = await getStoredToken()
+  const headers: Record<string, string> = { Accept: "application/json" }
+  if (token) headers["Authorization"] = `Token ${token}`
+
+  const form = new FormData()
+  form.append("device_uuid", deviceUuid)
+  form.append("source_recording_id", rec.sourceRecordingId)
+  if (rec.sourceCallEventId) form.append("source_call_event_id", rec.sourceCallEventId)
+  form.append("recorded_at", rec.recordedAt)
+  if (rec.durationSeconds != null) form.append("duration_seconds", String(rec.durationSeconds))
+  form.append("content_type", rec.contentType)
+  // React Native's FormData file shape.
+  form.append("file", { uri: rec.fileUri, name: rec.fileName, type: rec.contentType } as unknown as Blob)
+
+  // Audio is larger than metadata; allow more time than the default.
+  const res = await fetchWithTimeout(`${ROOT}/recordings/device-upload/`, { method: "POST", headers, body: form }, 60000)
+  if (res.status === 200 || res.status === 201) return (await res.json()) as { status: string; id?: string }
+  throw await parseError(res)
 }
 
 export async function uploadDeviceCalls(
