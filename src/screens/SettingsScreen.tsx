@@ -10,11 +10,20 @@ import { getOrCreateDeviceUuid } from "../lib/device"
 import { getMobileSessionId, loadMobileSessionId, flushOfflineQueue, reportMobileEvent, endMobileSession, logoutMobileSession } from "../lib/mobile"
 import { startTracking, stopTracking, useTrackingStatus } from "../lib/location"
 import {
+  consentCovers,
+  fetchMonitorConsent,
   fetchMonitorPolicy,
   policyAllowsCategory,
   setConsentCategory,
   type MonitorPolicy,
 } from "../lib/call-api"
+import {
+  CALL_RECORDING_CATEGORY,
+  callRecordingSupported,
+  recordingFolderUri,
+  requestRecordingFolder,
+  syncCallRecordings,
+} from "../lib/call-recording-sync"
 import { isOptedIn, setOptIn, type MonitorCategoryKey } from "../lib/monitor-prefs"
 import { appUsageSupported, openUsageAccessSettings, syncAppUsage, usageAccessState } from "../lib/app-usage-sync"
 import { captureInAppScreen } from "../lib/screen-capture"
@@ -145,12 +154,17 @@ function MonitoringSection() {
   const [busy, setBusy] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [note, setNote] = useState("")
+  const [recOn, setRecOn] = useState(false)
+  const [recFolder, setRecFolder] = useState<string | null>(null)
 
   useEffect(() => {
     void (async () => {
       try {
         const p = await fetchMonitorPolicy()
         setPolicy(p)
+        const consent = await fetchMonitorConsent().catch(() => null)
+        setRecOn(consentCovers(consent, p, CALL_RECORDING_CATEGORY))
+        setRecFolder(recordingFolderUri())
       } catch {
         setPolicy(null)
       } finally {
@@ -200,6 +214,40 @@ function MonitoringSection() {
     } finally {
       setBusy(false)
     }
+  }
+
+  async function toggleRecordings(value: boolean) {
+    if (busy) return
+    setBusy(true)
+    setNote("")
+    try {
+      await setConsentCategory(policy!, CALL_RECORDING_CATEGORY, value)
+      setRecOn(value)
+      if (value) {
+        const folder = recordingFolderUri() ?? (await requestRecordingFolder())
+        setRecFolder(folder)
+        if (!folder) setNote("Choose the folder your phone's dialer saves call recordings to.")
+        else await runRecordingSync()
+      }
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : "Could not update your choice.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function chooseRecordingFolder() {
+    const folder = await requestRecordingFolder()
+    if (folder) {
+      setRecFolder(folder)
+      await runRecordingSync()
+    }
+  }
+
+  async function runRecordingSync() {
+    setNote("Checking for new call recordings…")
+    const r = await syncCallRecordings()
+    setNote(recordingSyncMessage(r.uploaded, r.skipped))
   }
 
   async function toggleShare() {
@@ -290,6 +338,35 @@ function MonitoringSection() {
         </Pressable>
       ) : null}
 
+      {policyAllowsCategory(policy, CALL_RECORDING_CATEGORY) ? (
+        <ToggleRow
+          label="Call recordings (Android)"
+          detail={
+            !callRecordingSupported()
+              ? "Android only, in the full app."
+              : "Uploads the recordings your phone's own dialer saves, for calls after you turn this on. CIIS never records calls itself."
+          }
+          value={recOn}
+          disabled={busy || !callRecordingSupported()}
+          onValueChange={(v) => void toggleRecordings(v)}
+        />
+      ) : null}
+
+      {recOn && callRecordingSupported() ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <Pressable style={s.secondaryBtn} onPress={() => void chooseRecordingFolder()} disabled={busy}>
+            <Ionicons name="folder-open-outline" size={16} color={colors.primary} />
+            <Text style={s.secondaryText}>{recFolder ? "Change folder" : "Choose recordings folder"}</Text>
+          </Pressable>
+          {recFolder ? (
+            <Pressable style={s.secondaryBtn} onPress={() => void runRecordingSync()} disabled={busy}>
+              <Ionicons name="cloud-upload-outline" size={16} color={colors.primary} />
+              <Text style={s.secondaryText}>Sync now</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
       {note ? (
         <View style={s.note}>
           <Ionicons name="information-circle" size={16} color={colors.primary} />
@@ -298,6 +375,28 @@ function MonitoringSection() {
       ) : null}
     </Section>
   )
+}
+
+function recordingSyncMessage(uploaded: number, skipped: string): string {
+  if (uploaded > 0) return `Uploaded ${uploaded} call recording${uploaded === 1 ? "" : "s"}.`
+  switch (skipped) {
+    case "":
+      return "No new recordings found in that folder for calls since you turned this on. Make sure your dialer's call recording is on, then make a call."
+    case "folder":
+      return "Choose the folder your phone's dialer saves call recordings to."
+    case "consent":
+      return "Turn on Call recordings first."
+    case "policy":
+      return "Call recordings are not enabled in the current policy."
+    case "network":
+      return "Can't reach the server. Recordings will upload when you're back online."
+    case "busy":
+      return "A sync is already running."
+    case "build":
+      return "This needs the full app, not Expo Go."
+    default:
+      return `Recordings could not upload (${skipped}).`
+  }
 }
 
 function ToggleRow({
