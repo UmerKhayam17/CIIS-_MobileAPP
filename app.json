@@ -22,7 +22,7 @@
     "android": {
       "package": "pk.gov.customs.ciis",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0B1A33",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -67,7 +67,16 @@
           "isAndroidForegroundServiceEnabled": true
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0B1A33"
+        }
+      ]
     ],
     "extra": {
       "eas": {

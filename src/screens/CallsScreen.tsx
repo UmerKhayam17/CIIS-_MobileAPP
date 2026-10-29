@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { View, Text, TextInput, Pressable, FlatList, StyleSheet, Platform, Linking } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
-import { colors, radius } from "../theme"
+import { colors, radius, shadow } from "../theme"
 import { canViewAllStaff, getCachedUser } from "../lib/auth"
 import { formatDuration, formatTime, shiftIso, todayIso } from "../lib/format"
-import { EmptyState, ErrorBanner, Loading } from "../ui"
+import { EmptyState, ErrorBanner, FilterChip, KpiTile, Loading, ScreenTitle, SectionCard } from "../ui"
 import {
   MonitorApiError,
   fetchCallRecords,
@@ -26,11 +26,20 @@ import {
   type CallPermission,
 } from "../lib/call-sync"
 
-const DIRECTION: Record<string, string> = {
-  inbound: "Incoming",
-  outbound: "Outgoing",
-  missed: "Missed",
-  unknown: "Unknown",
+type DirFilter = "all" | "inbound" | "outbound" | "missed"
+
+const DIR_META: Record<string, { icon: keyof typeof Ionicons.glyphMap; color: string; label: string }> = {
+  inbound: { icon: "arrow-down-outline", color: colors.good, label: "Incoming" },
+  outbound: { icon: "arrow-up-outline", color: colors.primary, label: "Outgoing" },
+  missed: { icon: "close-outline", color: colors.bad, label: "Missed" },
+  unknown: { icon: "help-outline", color: colors.faint, label: "Unknown" },
+}
+
+const REC_META: Record<string, { label: string; bg: string; fg: string }> = {
+  available: { label: "Recording", bg: colors.goodBg, fg: "#166534" },
+  pending: { label: "Processing", bg: colors.warnBg, fg: "#92400e" },
+  failed: { label: "Rec. failed", bg: colors.badBg, fg: "#991b1b" },
+  not_recorded: { label: "Not recorded", bg: "#f1f5f9", fg: "#334155" },
 }
 
 export default function CallsScreen() {
@@ -48,6 +57,7 @@ export default function CallsScreen() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
+  const [dir, setDir] = useState<DirFilter>("all")
 
   useEffect(() => {
     const t = setTimeout(() => setQuery(username.trim()), 300)
@@ -154,98 +164,113 @@ export default function CallsScreen() {
     month: "short",
     day: "numeric",
   })
+  const isToday = date === todayIso()
+
+  const filtered = useMemo(() => rows.filter((r) => dir === "all" || r.direction === dir), [rows, dir])
+  const missed = useMemo(() => rows.filter((r) => r.direction === "missed").length, [rows])
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <FlatList
-        data={loading ? [] : rows}
+        data={loading ? [] : filtered}
         keyExtractor={(row) => row.id}
         contentContainerStyle={{ padding: 16, gap: 10 }}
         ListHeaderComponent={
-          <View style={{ gap: 12 }}>
-            <View>
-              <Text style={s.h1}>Call history</Text>
-              <Text style={s.sub}>
-                {overview
+          <View style={{ gap: 12, marginBottom: 2 }}>
+            <ScreenTitle
+              title={overview ? "Staff calls" : "Call history"}
+              subtitle={
+                overview
                   ? "Calls uploaded from Android work phones and the company phone system. Numbers are masked."
-                  : "Your uploaded calls. Numbers are masked. CIIS does not record call audio."}
-              </Text>
-            </View>
+                  : "Your uploaded calls. Numbers are masked. CIIS does not record call audio."
+              }
+            />
 
             {Platform.OS === "ios" ? (
-              <View style={s.note}>
-                <Ionicons name="phone-portrait-outline" size={18} color={colors.primaryDark} />
-                <Text style={s.noteText}>
-                  iPhone does not let CIIS read normal SIM call history. Business calls appear here only when they are placed through the company phone system.
-                </Text>
-              </View>
+              <Note icon="phone-portrait-outline">
+                iPhone does not let CIIS read normal SIM call history. Business calls appear here only when they are placed through the company phone system.
+              </Note>
             ) : null}
 
             {Platform.OS === "android" && !androidCallLogSupported() ? (
-              <View style={s.note}>
-                <Text style={s.noteText}>
-                  Expo Go cannot read call history. Install a CIIS development build on this phone, then allow call history after you acknowledge the notice.
-                </Text>
-              </View>
+              <Note icon="construct-outline">
+                Expo Go cannot read call history. Install a CIIS development build on this phone, then allow call history after you acknowledge the notice.
+              </Note>
             ) : null}
 
             {Platform.OS === "android" && androidCallLogSupported() && policy && !handsetAllowed ? (
-              <View style={s.note}>
-                <Text style={s.noteText}>
-                  Android call history is not in the published monitoring policy yet, so this phone will not upload it. Ask IT to publish the updated policy.
-                </Text>
-              </View>
+              <Note icon="document-text-outline">
+                Android call history is not in the published monitoring policy yet, so this phone will not upload it. Ask IT to publish the updated policy.
+              </Note>
             ) : null}
 
             {Platform.OS === "android" && handsetAllowed && !acknowledged ? (
-              <View style={s.card}>
-                <Text style={s.cardTitle}>Before call history is uploaded</Text>
+              <SectionCard title="Before call history is uploaded" icon="shield-checkmark">
                 <Text style={s.body}>
                   If this is a CIIS work phone, allowing access uploads incoming, outgoing and missed call numbers, times and durations from the moment you acknowledge. Calls from before that are not uploaded. CIIS does not record audio. Supervisors, HR and authorized administrators can view the masked records.
                 </Text>
                 {policy?.summary ? <Text style={s.body}>{policy.summary}</Text> : null}
-                {policy?.contact ? <Text style={s.meta}>{policy.contact}</Text> : null}
-                <Pressable style={s.checkRow} onPress={() => setAgreed((v) => !v)}>
-                  <Ionicons name={agreed ? "checkbox" : "square-outline"} size={22} color={colors.primary} />
+                {policy?.contact ? (
+                  <View style={s.infoLine}>
+                    <Ionicons name="person-outline" size={14} color={colors.gold} />
+                    <Text style={s.meta}>{policy.contact}</Text>
+                  </View>
+                ) : null}
+                <Pressable style={[s.checkRow, agreed && s.checkRowOn]} onPress={() => setAgreed((v) => !v)}>
+                  <Ionicons name={agreed ? "checkbox" : "square-outline"} size={22} color={agreed ? colors.gold : colors.primary} />
                   <Text style={s.checkText}>This is a CIIS work phone, or CIIS has authorized call-history collection on it.</Text>
                 </Pressable>
                 <Pressable style={[s.primaryBtn, (!agreed || busy) && s.disabled]} disabled={!agreed || busy} onPress={() => void acknowledge()}>
+                  <Ionicons name="checkmark" size={18} color={colors.navy} />
                   <Text style={s.primaryText}>{busy ? "Saving…" : "Acknowledge"}</Text>
                 </Pressable>
-              </View>
+              </SectionCard>
             ) : null}
 
             {Platform.OS === "android" && handsetAllowed && acknowledged ? (
-              <View style={s.card}>
-                <Text style={s.cardTitle}>This phone</Text>
-                <Text style={s.body}>
-                  {permission === "granted"
-                    ? "Call history access is allowed. CIIS uploads new calls when you open the app."
-                    : "Call history access is not allowed yet. Nothing is read until you allow it."}
-                </Text>
+              <SectionCard title="This phone" icon="phone-portrait">
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <View style={[s.dot, { backgroundColor: permission === "granted" ? colors.good : colors.warn }]} />
+                  <Text style={s.body}>
+                    {permission === "granted"
+                      ? "Call history access is allowed. CIIS uploads new calls when you open the app."
+                      : "Call history access is not allowed yet. Nothing is read until you allow it."}
+                  </Text>
+                </View>
                 <Pressable style={[s.primaryBtn, busy && s.disabled]} disabled={busy} onPress={() => void allowAndSync()}>
+                  <Ionicons name={permission === "granted" ? "sync" : "lock-open-outline"} size={18} color={colors.navy} />
                   <Text style={s.primaryText}>{busy ? "Working…" : permission === "granted" ? "Sync now" : "Allow call history"}</Text>
                 </Pressable>
                 {permission === "blocked" ? (
                   <Pressable style={s.secondaryBtn} onPress={() => void Linking.openSettings()}>
+                    <Ionicons name="settings-outline" size={16} color={colors.primary} />
                     <Text style={s.secondaryText}>Open settings</Text>
                   </Pressable>
                 ) : null}
-                <Pressable onPress={() => void withdraw()} disabled={busy}>
+                <Pressable style={s.withdrawBtn} onPress={() => void withdraw()} disabled={busy}>
+                  <Ionicons name="hand-left-outline" size={16} color={colors.bad} />
                   <Text style={s.withdraw}>Stop uploading call history</Text>
                 </Pressable>
+              </SectionCard>
+            ) : null}
+
+            {notice ? (
+              <View style={s.notice}>
+                <Ionicons name="information-circle" size={18} color={colors.primary} />
+                <Text style={s.noticeText}>{notice}</Text>
               </View>
             ) : null}
 
-            {notice ? <Text style={s.notice}>{notice}</Text> : null}
-
             <View style={s.dateBar}>
-              <Pressable style={s.dateBtn} onPress={() => setDate((d) => shiftIso(d, -1))}>
-                <Ionicons name="chevron-back" size={20} color={colors.text} />
+              <Pressable style={s.dateBtn} onPress={() => setDate((d) => shiftIso(d, -1))} hitSlop={6}>
+                <Ionicons name="chevron-back" size={20} color={colors.goldLight} />
               </Pressable>
-              <Text style={s.dateLabel}>{dateLabel}</Text>
-              <Pressable style={s.dateBtn} onPress={() => setDate((d) => shiftIso(d, 1))}>
-                <Ionicons name="chevron-forward" size={20} color={colors.text} />
+              <View style={{ flex: 1, alignItems: "center" }}>
+                <Text style={s.dateLabel}>{dateLabel}</Text>
+                {isToday ? <Text style={s.dateSub}>Today</Text> : null}
+              </View>
+              <Pressable style={s.dateBtn} onPress={() => setDate((d) => shiftIso(d, 1))} hitSlop={6}>
+                <Ionicons name="chevron-forward" size={20} color={colors.goldLight} />
               </Pressable>
             </View>
 
@@ -263,102 +288,165 @@ export default function CallsScreen() {
               </View>
             ) : null}
 
-            <View style={s.totTile}>
-              <Text style={s.totLabel}>Talk time</Text>
-              <Text style={s.totValue}>{formatDuration(talkSeconds)}</Text>
-              <Text style={s.meta}>{rows.length} shown</Text>
-            </View>
+            {!loading && !error ? (
+              <>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                  <KpiTile icon="call" label="Calls" value={rows.length} tone={colors.primary} />
+                  <KpiTile icon="close-circle-outline" label="Missed" value={missed} tone={colors.bad} />
+                  <KpiTile icon="time" label="Talk time" value={formatDuration(talkSeconds)} tone={colors.gold} />
+                </View>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {(["all", "inbound", "outbound", "missed"] as const).map((d) => (
+                    <FilterChip key={d} label={d === "all" ? "All" : DIR_META[d].label} active={dir === d} onPress={() => setDir(d)} />
+                  ))}
+                </View>
+              </>
+            ) : null}
 
             {error ? <ErrorBanner message={error} /> : null}
-            {loading ? <Loading /> : null}
-            {!loading && !error && rows.length === 0 ? (
-              <EmptyState
-                icon="call-outline"
-                title="No calls for this day"
-                description="Uploaded Android call history and company phone-system calls show up here."
-              />
-            ) : null}
+            {loading ? <Loading label="Loading calls" /> : null}
           </View>
         }
-        renderItem={({ item }) => (
-          <View style={s.eventCard}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
-              <Text style={s.eventUser}>{overview ? item.name || item.username || "Unknown" : DIRECTION[item.direction] || "Call"}</Text>
-              <Text style={s.eventTime}>{formatTime(item.started_at)}</Text>
+        ListEmptyComponent={
+          !loading && !error ? (
+            <EmptyState
+              icon="call-outline"
+              title={rows.length ? "No matching calls" : "No calls for this day"}
+              description="Uploaded Android call history and company phone-system calls show up here."
+            />
+          ) : null
+        }
+        renderItem={({ item }) => {
+          const d = DIR_META[item.direction] ?? DIR_META.unknown
+          const rec = REC_META[item.recording_status]
+          return (
+            <View style={s.card}>
+              <View style={[s.dirIcon, { backgroundColor: `${d.color}1a` }]}>
+                <Ionicons name={d.icon} size={18} color={d.color} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+                  <Text style={s.number} numberOfLines={1}>
+                    {overview ? item.name || item.username || "Unknown" : item.masked_number || "Hidden number"}
+                  </Text>
+                  <Text style={s.time}>{formatTime(item.started_at)}</Text>
+                </View>
+                {overview ? <Text style={s.sub2}>{item.masked_number || "Hidden number"}</Text> : null}
+                <Text style={s.metaLine}>
+                  {[d.label, formatDuration(item.duration_seconds), item.source_label || item.source].filter(Boolean).join(" · ")}
+                </Text>
+                {rec ? (
+                  <View style={{ flexDirection: "row", marginTop: 8 }}>
+                    <View style={[s.recChip, { backgroundColor: rec.bg }]}>
+                      <Text style={{ color: rec.fg, fontSize: 11, fontWeight: "700" }}>{rec.label}</Text>
+                    </View>
+                  </View>
+                ) : null}
+              </View>
             </View>
-            <Text style={s.eventAction}>{item.masked_number || "Hidden number"}</Text>
-            <Text style={s.eventMeta}>
-              {[
-                overview ? DIRECTION[item.direction] : null,
-                formatDuration(item.duration_seconds),
-                item.source_label || item.source,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </Text>
-          </View>
-        )}
+          )
+        }}
       />
     </View>
   )
 }
 
+function Note({ icon, children }: { icon: keyof typeof Ionicons.glyphMap; children: React.ReactNode }) {
+  return (
+    <View style={s.note}>
+      <View style={s.noteIcon}>
+        <Ionicons name={icon} size={16} color={colors.gold} />
+      </View>
+      <Text style={s.noteText}>{children}</Text>
+    </View>
+  )
+}
+
 const s = StyleSheet.create({
-  h1: { fontSize: 20, fontWeight: "800", color: colors.text },
-  sub: { color: colors.muted, marginTop: 2 },
   note: {
     flexDirection: "row",
+    alignItems: "flex-start",
     gap: 10,
-    backgroundColor: colors.chipBg,
-    borderRadius: radius.md,
-    padding: 14,
-  },
-  noteText: { flex: 1, color: colors.primaryDark, lineHeight: 20 },
-  card: {
     backgroundColor: colors.card,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: 16,
-    gap: 8,
+    padding: 14,
+    ...shadow,
   },
-  cardTitle: { fontWeight: "800", color: colors.text, fontSize: 16 },
-  body: { color: colors.text, lineHeight: 20 },
-  meta: { color: colors.muted, fontSize: 12 },
-  checkRow: { flexDirection: "row", gap: 10, alignItems: "flex-start", marginTop: 4 },
+  noteIcon: { width: 28, height: 28, borderRadius: 8, backgroundColor: colors.navy, alignItems: "center", justifyContent: "center" },
+  noteText: { flex: 1, color: colors.muted, lineHeight: 20 },
+  body: { flex: 1, color: colors.text, lineHeight: 21 },
+  meta: { color: colors.muted, fontSize: 12, flex: 1 },
+  infoLine: { flexDirection: "row", alignItems: "center", gap: 6 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  checkRow: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "flex-start",
+    padding: 12,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.chipBg,
+  },
+  checkRowOn: { borderColor: colors.gold, backgroundColor: colors.goldBg },
   checkText: { flex: 1, color: colors.text, lineHeight: 20 },
   primaryBtn: {
-    backgroundColor: colors.primary,
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: colors.gold,
     borderRadius: radius.md,
-    height: 48,
+    height: 52,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 4,
   },
-  primaryText: { color: "#fff", fontWeight: "700" },
+  primaryText: { color: colors.navy, fontWeight: "700", fontSize: 16 },
   secondaryBtn: {
-    height: 44,
+    flexDirection: "row",
+    gap: 6,
+    height: 46,
+    borderRadius: radius.md,
+    backgroundColor: colors.chipBg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryText: { fontWeight: "700", color: colors.primary },
+  withdrawBtn: {
+    flexDirection: "row",
+    gap: 6,
+    height: 46,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: "#fecaca",
+    backgroundColor: colors.card,
     alignItems: "center",
     justifyContent: "center",
   },
-  secondaryText: { fontWeight: "700", color: colors.text },
-  withdraw: { color: colors.bad, fontWeight: "700", textAlign: "center", marginTop: 4 },
+  withdraw: { color: colors.bad, fontWeight: "700" },
   disabled: { opacity: 0.5 },
-  notice: { color: colors.primaryDark, fontWeight: "600" },
-  dateBar: {
+  notice: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: colors.card,
+    gap: 8,
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: 6,
+    backgroundColor: colors.chipBg,
+    padding: 12,
   },
-  dateBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  dateLabel: { flex: 1, textAlign: "center", fontWeight: "700", color: colors.text },
+  noticeText: { flex: 1, color: colors.primary, fontWeight: "600" },
+  dateBar: { flexDirection: "row", alignItems: "center", backgroundColor: colors.navy, borderRadius: radius.md, padding: 6, gap: 6, ...shadow },
+  dateBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.sm,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dateLabel: { fontWeight: "700", color: "#fff", fontSize: 15 },
+  dateSub: { color: colors.goldLight, fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8, marginTop: 1 },
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
@@ -368,15 +456,14 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     paddingHorizontal: 12,
-    height: 48,
+    height: 46,
   },
   search: { flex: 1, color: colors.text },
-  totTile: { borderWidth: 1, borderColor: "#bbf7d0", backgroundColor: colors.goodBg, borderRadius: radius.md, padding: 12 },
-  totLabel: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", color: "#166534" },
-  totValue: { fontSize: 22, fontWeight: "800", color: "#14532d", marginTop: 4 },
-  eventCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 14 },
-  eventUser: { fontWeight: "700", color: colors.text, flex: 1 },
-  eventTime: { fontSize: 11, color: colors.faint },
-  eventAction: { color: colors.text, marginTop: 4, fontWeight: "700" },
-  eventMeta: { color: colors.faint, fontSize: 12, marginTop: 4 },
+  card: { flexDirection: "row", gap: 12, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 14, ...shadow },
+  dirIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  number: { fontWeight: "700", color: colors.text, fontSize: 15, flexShrink: 1 },
+  sub2: { color: colors.text, fontSize: 13, fontWeight: "600", marginTop: 2 },
+  time: { color: colors.faint, fontSize: 12 },
+  metaLine: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  recChip: { borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 3 },
 })

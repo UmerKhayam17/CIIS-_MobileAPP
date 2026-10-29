@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react"
-import { View, Text, Pressable, StyleSheet, Alert, Switch, ScrollView, Platform, ActivityIndicator } from "react-native"
-import { colors, radius } from "../theme"
+import { View, Text, Pressable, StyleSheet, Alert, Switch, ScrollView, Platform, ActivityIndicator, Image } from "react-native"
+import { Ionicons } from "@expo/vector-icons"
+import { brand, colors, radius, shadow } from "../theme"
+import { Avatar } from "../ui"
+import { APP_VERSION } from "../config"
 import { displayName, getCachedUser, shouldTrackLocation, clearAuth } from "../lib/auth"
 import { prettyRole } from "../lib/format"
 import { getOrCreateDeviceUuid } from "../lib/device"
@@ -68,18 +71,23 @@ export default function SettingsScreen({ onSignOut }: { onSignOut: () => void })
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, gap: 12 }}>
-      <Section title="Account">
-        <Text style={s.big}>{displayName(user)}</Text>
-        <Text style={s.muted}>{prettyRole(user?.role)}</Text>
-        <Text style={s.muted}>{user?.username}</Text>
+      <View style={s.profile}>
+        <Image source={brand.crest} style={s.watermark} resizeMode="contain" />
+        <View style={s.profileAccent} />
+        <Avatar name={displayName(user)} size={60} />
+        <View style={{ flex: 1 }}>
+          <Text style={s.profileName}>{displayName(user)}</Text>
+          <Text style={s.profileRole}>{prettyRole(user?.role)}</Text>
+          <Text style={s.profileUser}>@{user?.username}</Text>
+        </View>
+      </View>
+
+      <Section title="Device" icon="phone-portrait">
+        <InfoRow label="Device ID" value={deviceUuid || "—"} />
+        <InfoRow label="Session" value={sessionId || "—"} />
       </Section>
 
-      <Section title="Device">
-        <Text style={s.mono}>UUID {deviceUuid}</Text>
-        <Text style={s.muted}>Session {sessionId || "—"}</Text>
-      </Section>
-
-      <Section title="Call history">
+      <Section title="Call history" icon="call">
         <Text style={s.muted}>
           Managed on the Calls tab. CIIS does not record call audio. iPhone cellular history cannot be read.
         </Text>
@@ -87,7 +95,7 @@ export default function SettingsScreen({ onSignOut }: { onSignOut: () => void })
 
       <MonitoringSection />
 
-      <Section title="GPS">
+      <Section title="GPS" icon="navigate">
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: tone }} />
           <Text style={s.big}>{label.title}</Text>
@@ -95,14 +103,27 @@ export default function SettingsScreen({ onSignOut }: { onSignOut: () => void })
         <Text style={s.muted}>{label.detail}</Text>
         {shouldTrackLocation(user) ? (
           <Pressable style={s.secondaryBtn} onPress={() => void startTracking()}>
+            <Ionicons name="refresh" size={16} color={colors.primary} />
             <Text style={s.secondaryText}>Refresh GPS</Text>
           </Pressable>
         ) : null}
       </Section>
 
-      <Pressable style={[s.signOut, signingOut && { opacity: 0.6 }]} onPress={confirmSignOut} disabled={signingOut}>
+      <Pressable
+        style={({ pressed }) => [s.signOut, (signingOut || pressed) && { opacity: 0.7 }]}
+        onPress={confirmSignOut}
+        disabled={signingOut}
+      >
+        <Ionicons name="log-out-outline" size={20} color={colors.bad} />
         <Text style={s.signOutText}>{signingOut ? "Signing out…" : "Sign out"}</Text>
       </Pressable>
+      <View style={s.about}>
+        <Image source={brand.crest} style={{ width: 96, height: 48 }} resizeMode="contain" />
+        <Text style={s.aboutName}>{brand.fullName}</Text>
+        <Text style={s.aboutMeta}>
+          {brand.org} · v{APP_VERSION}
+        </Text>
+      </View>
     </ScrollView>
   )
 }
@@ -145,14 +166,14 @@ function MonitoringSection() {
 
   if (loading) {
     return (
-      <Section title="Monitoring & privacy">
-        <ActivityIndicator color={colors.primary} />
+      <Section title="Monitoring & privacy" icon="shield-checkmark">
+        <ActivityIndicator color={colors.gold} />
       </Section>
     )
   }
   if (!policy) {
     return (
-      <Section title="Monitoring & privacy">
+      <Section title="Monitoring & privacy" icon="shield-checkmark">
         <Text style={s.muted}>Monitoring is not set up on this deployment.</Text>
       </Section>
     )
@@ -196,13 +217,13 @@ function MonitoringSection() {
   const showScreenShare = screenShareSupported() && policyAllowsCategory(policy, "screen_share")
 
   return (
-    <Section title="Monitoring & privacy">
-      <Text style={s.muted}>
+    <Section title="Monitoring & privacy" icon="shield-checkmark">
+      <Text style={[s.muted, { marginBottom: 4 }]}>
         These are optional and off until you turn them on. You can switch any of them off at any time.
       </Text>
 
       {policyAllowsCategory(policy, "app_usage") ? (
-        <Row
+        <ToggleRow
           label="App usage (Android)"
           detail={
             Platform.OS !== "android"
@@ -219,12 +240,13 @@ function MonitoringSection() {
 
       {opts.app_usage && androidUsage && usageAccessState() === "denied" ? (
         <Pressable style={s.secondaryBtn} onPress={() => openUsageAccessSettings()}>
+          <Ionicons name="settings-outline" size={16} color={colors.primary} />
           <Text style={s.secondaryText}>Grant Usage access</Text>
         </Pressable>
       ) : null}
 
       {policyAllowsCategory(policy, "in_app_screens") ? (
-        <Row
+        <ToggleRow
           label="Screenshots of the CIIS app"
           detail="Screens inside CIIS only. Never any other app on your phone."
           value={opts.in_app_screens}
@@ -242,12 +264,13 @@ function MonitoringSection() {
             )
           }
         >
+          <Ionicons name="camera-outline" size={16} color={colors.primary} />
           <Text style={s.secondaryText}>Capture this screen now</Text>
         </Pressable>
       ) : null}
 
       {policyAllowsCategory(policy, "screen_share") ? (
-        <Row
+        <ToggleRow
           label="Screen share (you start it)"
           detail={
             Platform.OS !== "android" || !screenShareSupported()
@@ -261,17 +284,23 @@ function MonitoringSection() {
       ) : null}
 
       {opts.screen_share && showScreenShare ? (
-        <Pressable style={[s.secondaryBtn, sharing && { backgroundColor: "#fee2e2" }]} onPress={() => void toggleShare()}>
-          <Text style={s.secondaryText}>{sharing ? "Stop screen share" : "Start screen share"}</Text>
+        <Pressable style={[s.secondaryBtn, sharing && { backgroundColor: colors.badBg }]} onPress={() => void toggleShare()}>
+          <Ionicons name={sharing ? "stop-circle-outline" : "tv-outline"} size={16} color={sharing ? colors.bad : colors.primary} />
+          <Text style={[s.secondaryText, sharing && { color: colors.bad }]}>{sharing ? "Stop screen share" : "Start screen share"}</Text>
         </Pressable>
       ) : null}
 
-      {note ? <Text style={[s.muted, { color: colors.primary }]}>{note}</Text> : null}
+      {note ? (
+        <View style={s.note}>
+          <Ionicons name="information-circle" size={16} color={colors.primary} />
+          <Text style={s.noteText}>{note}</Text>
+        </View>
+      ) : null}
     </Section>
   )
 }
 
-function Row({
+function ToggleRow({
   label,
   detail,
   value,
@@ -287,10 +316,16 @@ function Row({
   return (
     <View style={s.row}>
       <View style={{ flex: 1, paddingRight: 10 }}>
-        <Text style={{ fontWeight: "700", color: colors.text }}>{label}</Text>
-        <Text style={s.muted}>{detail}</Text>
+        <Text style={s.toggleLabel}>{label}</Text>
+        <Text style={s.toggleDetail}>{detail}</Text>
       </View>
-      <Switch value={value} disabled={disabled} onValueChange={onValueChange} />
+      <Switch
+        value={value}
+        disabled={disabled}
+        onValueChange={onValueChange}
+        trackColor={{ false: "#cbd5e1", true: colors.primary }}
+        thumbColor={value ? colors.gold : "#f8fafc"}
+      />
     </View>
   )
 }
@@ -310,24 +345,87 @@ function shareSkipMessage(skipped?: string): string {
   }
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, icon, children }: { title: string; icon: keyof typeof Ionicons.glyphMap; children: React.ReactNode }) {
   return (
     <View style={s.section}>
-      <Text style={s.sectionTitle}>{title}</Text>
+      <View style={s.sectionHead}>
+        <View style={s.sectionIcon}>
+          <Ionicons name={icon} size={14} color={colors.gold} />
+        </View>
+        <Text style={s.sectionTitle}>{title}</Text>
+      </View>
       {children}
     </View>
   )
 }
 
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={s.infoRow}>
+      <Text style={s.infoLabel}>{label}</Text>
+      <Text style={s.infoValue} numberOfLines={1} ellipsizeMode="middle">
+        {value}
+      </Text>
+    </View>
+  )
+}
+
 const s = StyleSheet.create({
-  section: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, gap: 4 },
-  sectionTitle: { fontSize: 11, fontWeight: "700", color: colors.muted, textTransform: "uppercase", marginBottom: 4 },
-  big: { fontSize: 17, fontWeight: "800", color: colors.text },
-  muted: { color: colors.muted },
-  mono: { color: colors.text, fontSize: 12 },
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6 },
-  secondaryBtn: { marginTop: 10, alignSelf: "flex-start", backgroundColor: "#f1f5f9", borderRadius: radius.sm, paddingHorizontal: 16, height: 40, justifyContent: "center" },
-  secondaryText: { fontWeight: "700", color: colors.text },
-  signOut: { backgroundColor: colors.primary, borderRadius: radius.md, height: 50, alignItems: "center", justifyContent: "center", marginTop: 6 },
-  signOutText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  profile: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: colors.navy,
+    borderRadius: radius.lg,
+    padding: 18,
+    overflow: "hidden",
+    ...shadow,
+  },
+  profileAccent: { position: "absolute", left: 0, top: 0, bottom: 0, width: 4, backgroundColor: colors.gold },
+  watermark: { position: "absolute", right: -40, top: 8, width: 200, height: 100, opacity: 0.08 },
+  profileName: { color: "#fff", fontSize: 19, fontWeight: "700" },
+  profileRole: { color: colors.goldLight, fontSize: 13, fontWeight: "700", marginTop: 2 },
+  profileUser: { color: "rgba(255,255,255,0.6)", fontSize: 12, marginTop: 2 },
+  section: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 16, gap: 6, ...shadow },
+  sectionHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+  sectionIcon: { width: 24, height: 24, borderRadius: 6, backgroundColor: colors.navy, alignItems: "center", justifyContent: "center" },
+  sectionTitle: { fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 1 },
+  big: { fontSize: 17, fontWeight: "700", color: colors.text },
+  muted: { color: colors.muted, lineHeight: 20 },
+  infoRow: { flexDirection: "row", justifyContent: "space-between", gap: 12, paddingVertical: 6, borderTopWidth: 1, borderTopColor: "#f0f3f8" },
+  infoLabel: { color: colors.muted, fontSize: 13 },
+  infoValue: { color: colors.text, fontSize: 13, fontWeight: "600", flexShrink: 1 },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, borderTopWidth: 1, borderTopColor: "#f0f3f8" },
+  toggleLabel: { fontWeight: "600", color: colors.text, fontSize: 14 },
+  toggleDetail: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  secondaryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+    alignSelf: "flex-start",
+    backgroundColor: colors.chipBg,
+    borderRadius: radius.sm,
+    paddingHorizontal: 14,
+    height: 40,
+  },
+  secondaryText: { fontWeight: "700", color: colors.primary },
+  note: { flexDirection: "row", alignItems: "flex-start", gap: 6, marginTop: 6 },
+  noteText: { flex: 1, color: colors.primary, fontWeight: "600", fontSize: 13, lineHeight: 18 },
+  signOut: {
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    borderRadius: radius.md,
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  signOutText: { color: colors.bad, fontWeight: "700", fontSize: 16 },
+  about: { alignItems: "center", paddingVertical: 16, gap: 4 },
+  aboutName: { color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 6 },
+  aboutMeta: { color: colors.faint, fontSize: 11 },
 })

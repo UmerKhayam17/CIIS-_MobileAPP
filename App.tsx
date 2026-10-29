@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from "react"
-import { View, ActivityIndicator, AppState, type AppStateStatus } from "react-native"
+import { View, Image, ActivityIndicator, AppState, Platform, type AppStateStatus } from "react-native"
 import { StatusBar } from "expo-status-bar"
-import { SafeAreaProvider } from "react-native-safe-area-context"
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context"
 import { NavigationContainer } from "@react-navigation/native"
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs"
 import { Ionicons } from "@expo/vector-icons"
-import { colors } from "./src/theme"
+import { brand, colors } from "./src/theme"
+import { HeaderBrand } from "./src/ui"
 import { isAuthenticated, loadStoredUser, canViewAllStaff, shouldTrackLocation, getCachedUser } from "./src/lib/auth"
 import { flushOfflineQueue, sendHeartbeat, sendMobileEvent, transitionMobileSession } from "./src/lib/mobile"
 import { syncPermittedCallLogs } from "./src/lib/call-sync"
@@ -21,6 +22,19 @@ import AttendanceScreen from "./src/screens/AttendanceScreen"
 import LogsScreen from "./src/screens/LogsScreen"
 import CallsScreen from "./src/screens/CallsScreen"
 import SettingsScreen from "./src/screens/SettingsScreen"
+
+// On web, react-native-web renders TextInput as a real <input>, which gets the browser's
+// default black focus outline. Remove it once so focused fields match the app's own styling.
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const id = "ciis-input-focus-reset"
+  if (!document.getElementById(id)) {
+    const style = document.createElement("style")
+    style.id = id
+    style.textContent = `input, textarea { outline: none !important; }
+input:focus, textarea:focus { outline: none !important; box-shadow: none !important; }`
+    document.head.appendChild(style)
+  }
+}
 
 const Tab = createBottomTabNavigator()
 
@@ -38,30 +52,80 @@ function syncHandsetData() {
 }
 
 const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  Home: "grid-outline",
-  Location: "location-outline",
-  Attendance: "document-text-outline",
-  Logs: "list-outline",
-  Calls: "call-outline",
-  Settings: "settings-outline",
+  Home: "grid",
+  Location: "location",
+  Attendance: "calendar",
+  Calls: "call",
+  Logs: "pulse",
+  Settings: "person-circle",
+}
+
+const TITLES: Record<string, string> = {
+  Home: "Dashboard",
+  Location: "Location",
+  Attendance: "Attendance",
+  Calls: "Calls",
+  Logs: "Mobile logs",
+  Settings: "Profile",
+}
+
+const TAB_LABELS: Record<string, string> = {
+  Home: "Home",
+  Location: "Map",
+  Attendance: "Attend",
+  Calls: "Calls",
+  Logs: "Logs",
+  Settings: "Profile",
 }
 
 function Tabs({ onSignOut }: { onSignOut: () => void }) {
   const overview = canViewAllStaff(getCachedUser())
+  const insets = useSafeAreaInsets()
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        headerStyle: { backgroundColor: colors.card },
-        headerTitleStyle: { fontWeight: "800", color: colors.text },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.faint,
-        tabBarIcon: ({ color, size }) => <Ionicons name={ICONS[route.name]} size={size} color={color} />,
+        headerStyle: { backgroundColor: colors.navy, borderBottomWidth: 2, borderBottomColor: colors.gold },
+        headerTitleAlign: "left",
+        headerTitle: () => <HeaderBrand title={TITLES[route.name] ?? route.name} />,
+        headerShadowVisible: false,
+        sceneStyle: { backgroundColor: colors.bg },
+        tabBarLabel: TAB_LABELS[route.name] ?? route.name,
+        tabBarActiveTintColor: colors.goldLight,
+        tabBarInactiveTintColor: "rgba(255,255,255,0.78)",
+        tabBarStyle: {
+          backgroundColor: colors.navy,
+          borderTopWidth: 2,
+          borderTopColor: colors.gold,
+          height: 66 + insets.bottom,
+          paddingTop: 8,
+          paddingBottom: Math.max(insets.bottom, 8),
+        },
+        tabBarItemStyle: { paddingVertical: 2 },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "700", marginTop: 4 },
+        tabBarIcon: ({ color, focused }) => (
+          <View
+            style={{
+              width: 52,
+              height: 30,
+              borderRadius: 15,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: focused ? "rgba(201,162,39,0.22)" : "transparent",
+            }}
+          >
+            <Ionicons
+              name={(focused ? ICONS[route.name] : `${ICONS[route.name]}-outline`) as keyof typeof Ionicons.glyphMap}
+              size={21}
+              color={color}
+            />
+          </View>
+        ),
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Location" component={LocationScreen} />
       <Tab.Screen name="Attendance" component={AttendanceScreen} />
-      <Tab.Screen name="Calls" component={CallsScreen} options={{ title: "Calls" }} />
+      <Tab.Screen name="Calls" component={CallsScreen} />
       {overview ? <Tab.Screen name="Logs" component={LogsScreen} /> : null}
       <Tab.Screen name="Settings">{() => <SettingsScreen onSignOut={onSignOut} />}</Tab.Screen>
     </Tab.Navigator>
@@ -110,15 +174,16 @@ export default function App() {
 
   if (authed === null) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg }}>
-        <ActivityIndicator color={colors.primary} size="large" />
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#fff", gap: 24 }}>
+        <Image source={brand.logo} style={{ width: 220, height: 220 }} resizeMode="contain" />
+        <ActivityIndicator color={colors.gold} size="large" />
       </View>
     )
   }
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="dark" />
+      <StatusBar style={authed && needsOnboarding ? "dark" : "light"} />
       {authed ? (
         needsOnboarding ? (
           <OnboardingScreen userId={getCachedUser()?.id ?? null} onDone={() => setNeedsOnboarding(false)} />

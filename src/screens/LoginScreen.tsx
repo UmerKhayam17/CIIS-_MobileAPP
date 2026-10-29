@@ -9,9 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
-import { colors, radius } from "../theme"
+import { colors, radius, shadow, brand } from "../theme"
 import { login } from "../lib/auth-api"
 import { setAuthenticatedWithToken, getRememberedUsername, shouldTrackLocation } from "../lib/auth"
 import { saveMobileSession, reportMobileEvent, transitionMobileSession, sendHeartbeat } from "../lib/mobile"
@@ -52,14 +53,19 @@ export default function LoginScreen({ onAuthed }: { onAuthed: () => void }) {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         <View style={s.hero}>
-          <View style={s.logo}>
-            <Text style={{ color: colors.primary, fontWeight: "800", fontSize: 22 }}>C</Text>
+          <View style={s.logoCard}>
+            <Image source={brand.logo} style={s.logo} resizeMode="contain" />
           </View>
-          <Text style={s.brand}>CIIS</Text>
-          <Text style={s.brandSub}>Custom Intelligence Integrated System</Text>
+          <View style={s.divider}>
+            <View style={s.dividerLine} />
+            <Ionicons name="shield-checkmark" size={14} color={colors.gold} />
+            <View style={s.dividerLine} />
+          </View>
+          <Text style={s.brandSub}>Secure field access for {brand.org}</Text>
         </View>
 
         <View style={s.card}>
+          <View style={s.cardAccent} />
           <Text style={s.title}>Welcome back</Text>
           <Text style={s.subtitle}>
             Sign in once on this phone. CIIS stays signed in and shares your duty location until you sign out.
@@ -107,36 +113,49 @@ export default function LoginScreen({ onAuthed }: { onAuthed: () => void }) {
 
           <Pressable style={[s.button, loading && { opacity: 0.7 }]} onPress={submit} disabled={loading}>
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.navy} />
             ) : (
-              <Text style={s.buttonText}>Sign in</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={s.buttonText}>Sign in</Text>
+                <Ionicons name="arrow-forward" size={18} color={colors.navy} />
+              </View>
             )}
           </Pressable>
-          <Text style={s.hint}>Contact HR or IT if you need access.</Text>
+          <View style={s.hintRow}>
+            <Ionicons name="help-circle-outline" size={14} color={colors.muted} />
+            <Text style={s.hint}>Contact HR or IT if you need access.</Text>
+          </View>
         </View>
-        <Text style={s.footer}>© Pakistan Customs · Authorized personnel only</Text>
+        <Text style={s.footer}>© {brand.org} · {brand.fullName}
+          {"\n"}Authorized personnel only
+        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   )
 }
 
 const s = StyleSheet.create({
-  scroll: { flexGrow: 1, backgroundColor: colors.navy, padding: 24, justifyContent: "center" },
-  hero: { alignItems: "center", marginBottom: 24 },
-  logo: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.md,
+  scroll: { flexGrow: 1, backgroundColor: colors.navy, padding: 20, justifyContent: "center" },
+  hero: { alignItems: "center", marginBottom: 20 },
+  logoCard: {
+    width: 190,
+    height: 190,
+    borderRadius: 95,
     backgroundColor: "#fff",
+    borderWidth: 3,
+    borderColor: colors.gold,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    overflow: "hidden",
   },
-  brand: { color: "#fff", fontSize: 22, fontWeight: "800", letterSpacing: 1 },
-  brandSub: { color: "#93c5fd", fontSize: 11, textTransform: "uppercase", letterSpacing: 1, marginTop: 2 },
-  card: { backgroundColor: "#fff", borderRadius: radius.lg, padding: 22 },
-  title: { fontSize: 22, fontWeight: "800", color: colors.text },
-  subtitle: { color: colors.muted, marginTop: 6, marginBottom: 14 },
+  logo: { width: 168, height: 168 },
+  divider: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 18, width: 200 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: "rgba(201,162,39,0.5)" },
+  brandSub: { color: colors.goldLight, fontSize: 11, textTransform: "uppercase", letterSpacing: 1.2, marginTop: 10, fontWeight: "700" },
+  card: { backgroundColor: "#fff", borderRadius: radius.lg, padding: 22, paddingTop: 26, overflow: "hidden", ...shadow },
+  cardAccent: { position: "absolute", top: 0, left: 0, right: 0, height: 4, backgroundColor: colors.gold },
+  title: { fontSize: 22, fontWeight: "700", color: colors.text },
+  subtitle: { color: colors.muted, marginTop: 6, marginBottom: 14, lineHeight: 20 },
   alert: {
     flexDirection: "row",
     gap: 8,
@@ -153,7 +172,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#f7f9fc",
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
@@ -162,14 +181,15 @@ const s = StyleSheet.create({
   },
   input: { flex: 1, color: colors.text, fontSize: 15 },
   button: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.gold,
     borderRadius: radius.sm,
-    height: 50,
+    height: 52,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 18,
+    marginTop: 20,
   },
-  buttonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  hint: { textAlign: "center", color: colors.muted, fontSize: 12, marginTop: 12 },
-  footer: { textAlign: "center", color: "#64748b", fontSize: 12, marginTop: 20 },
+  buttonText: { color: colors.navy, fontWeight: "700", fontSize: 16, letterSpacing: 0.3 },
+  hintRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 14 },
+  hint: { color: colors.muted, fontSize: 12 },
+  footer: { textAlign: "center", color: "rgba(255,255,255,0.45)", fontSize: 11, marginTop: 20, lineHeight: 17 },
 })

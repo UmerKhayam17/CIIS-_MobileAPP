@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { View, Text, TextInput, Pressable, FlatList, StyleSheet } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
-import { colors, radius } from "../theme"
+import { colors, radius, shadow } from "../theme"
 import {
   fetchActivityLogs,
   fetchMobileSessions,
@@ -9,9 +9,19 @@ import {
   type MobilePhoneSession,
 } from "../lib/logs-api"
 import { formatDuration, formatTime, shiftIso, todayIso } from "../lib/format"
-import { EmptyState, ErrorBanner, Loading } from "../ui"
+import { EmptyState, ErrorBanner, Loading, ScreenTitle } from "../ui"
 
 const PAGE_SIZE = 40
+
+function eventIcon(action: string): keyof typeof Ionicons.glyphMap {
+  const a = (action || "").toLowerCase()
+  if (a.includes("logout") || a.includes("sign out")) return "log-out-outline"
+  if (a.includes("login") || a.includes("sign in")) return "log-in-outline"
+  if (a.includes("lock")) return "lock-closed-outline"
+  if (a.includes("gps") || a.includes("location")) return "location-outline"
+  if (a.includes("duty")) return "shield-checkmark-outline"
+  return "pulse-outline"
+}
 
 export default function LogsScreen() {
   const [date, setDate] = useState(todayIso())
@@ -87,17 +97,17 @@ export default function LogsScreen() {
         contentContainerStyle={{ padding: 16, gap: 10 }}
         ListHeaderComponent={
           <View style={{ gap: 12 }}>
-            <View>
-              <Text style={s.h1}>Mobile logs</Text>
-              <Text style={s.sub}>Time each phone spent in the app vs locked, with lock/unlock times.</Text>
-            </View>
+            <ScreenTitle title="Mobile logs" subtitle="Time each phone spent in the app vs locked, with lock/unlock times." />
             <View style={s.dateBar}>
               <Pressable style={s.dateBtn} onPress={() => { setPage(1); setDate((d) => shiftIso(d, -1)) }}>
-                <Ionicons name="chevron-back" size={20} color={colors.text} />
+                <Ionicons name="chevron-back" size={20} color={colors.gold} />
               </Pressable>
-              <Text style={s.dateLabel}>{dateLabel}</Text>
+              <View style={s.dateCenter}>
+                <Ionicons name="calendar-outline" size={16} color={colors.goldLight} />
+                <Text style={s.dateLabel}>{dateLabel}</Text>
+              </View>
               <Pressable style={s.dateBtn} onPress={() => { setPage(1); setDate((d) => shiftIso(d, 1)) }}>
-                <Ionicons name="chevron-forward" size={20} color={colors.text} />
+                <Ionicons name="chevron-forward" size={20} color={colors.gold} />
               </Pressable>
             </View>
             <View style={s.searchWrap}>
@@ -106,10 +116,12 @@ export default function LogsScreen() {
             </View>
             <View style={{ flexDirection: "row", gap: 8 }}>
               <View style={[s.totTile, { borderColor: "#bbf7d0", backgroundColor: colors.goodBg }]}>
+                <Ionicons name="phone-portrait" size={18} color="#166534" />
                 <Text style={[s.totLabel, { color: "#166534" }]}>In the app</Text>
                 <Text style={[s.totValue, { color: "#14532d" }]}>{formatDuration(usingSec)}</Text>
               </View>
-              <View style={[s.totTile, { borderColor: colors.border, backgroundColor: "#f8fafc" }]}>
+              <View style={[s.totTile, { borderColor: colors.border, backgroundColor: colors.chipBg }]}>
+                <Ionicons name="lock-closed" size={18} color={colors.muted} />
                 <Text style={[s.totLabel, { color: colors.muted }]}>Phone locked</Text>
                 <Text style={[s.totValue, { color: colors.text }]}>{formatDuration(lockedSec)}</Text>
               </View>
@@ -124,8 +136,11 @@ export default function LogsScreen() {
               const seconds = row.ended_at ? row.duration_seconds ?? row.live_seconds : row.live_seconds
               return (
                 <View key={`sess-${row.id}`} style={[s.sessCard, away ? {} : { backgroundColor: "#f0fdf4", borderColor: "#bbf7d0" }]}>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                    <Text style={s.sessName}>{row.name || row.username}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <View style={[s.sessIcon, { backgroundColor: away ? colors.chipBg : colors.goodBg }]}>
+                      <Ionicons name={away ? "lock-closed" : "phone-portrait"} size={14} color={away ? colors.muted : colors.good} />
+                    </View>
+                    <Text style={[s.sessName, { flex: 1 }]}>{row.name || row.username}</Text>
                     <Text style={s.sessDur}>{formatDuration(seconds)}</Text>
                   </View>
                   <Text style={s.sessMeta}>
@@ -143,12 +158,17 @@ export default function LogsScreen() {
         }
         renderItem={({ item }) => (
           <View style={s.eventCard}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-              <Text style={s.eventUser}>{item.username || "Unknown"}</Text>
-              <Text style={s.eventTime}>{formatTime(item.time)}</Text>
+            <View style={s.eventIcon}>
+              <Ionicons name={eventIcon(item.action)} size={16} color={colors.gold} />
             </View>
-            <Text style={s.eventAction}>{item.action}</Text>
-            <Text style={s.eventMeta}>{[item.os, item.device].filter(Boolean).join(" · ")}</Text>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+                <Text style={s.eventAction}>{item.action}</Text>
+                <Text style={s.eventTime}>{formatTime(item.time)}</Text>
+              </View>
+              <Text style={s.eventUser}>{item.username || "Unknown"}</Text>
+              {item.os || item.device ? <Text style={s.eventMeta}>{[item.os, item.device].filter(Boolean).join(" · ")}</Text> : null}
+            </View>
           </View>
         )}
         ListFooterComponent={
@@ -164,25 +184,26 @@ export default function LogsScreen() {
 }
 
 const s = StyleSheet.create({
-  h1: { fontSize: 20, fontWeight: "800", color: colors.text },
-  sub: { color: colors.muted, marginTop: 2 },
-  dateBar: { flexDirection: "row", alignItems: "center", backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 6 },
-  dateBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  dateLabel: { flex: 1, textAlign: "center", fontWeight: "700", color: colors.text },
+  dateBar: { flexDirection: "row", alignItems: "center", backgroundColor: colors.navy, borderRadius: radius.md, padding: 6, ...shadow },
+  dateBtn: { width: 44, height: 44, borderRadius: radius.sm, backgroundColor: "rgba(255,255,255,0.07)", alignItems: "center", justifyContent: "center" },
+  dateCenter: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  dateLabel: { fontWeight: "700", color: "#fff" },
   searchWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, height: 48 },
   search: { flex: 1, color: colors.text },
-  totTile: { flex: 1, borderWidth: 1, borderRadius: radius.md, padding: 12 },
+  totTile: { flex: 1, borderWidth: 1, borderRadius: radius.md, padding: 12, gap: 4 },
   totLabel: { fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
-  totValue: { fontSize: 22, fontWeight: "800", marginTop: 4 },
-  sectionHead: { fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", marginTop: 4 },
+  totValue: { fontSize: 22, fontWeight: "700", marginTop: 4 },
+  sectionHead: { fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 1, marginTop: 4 },
   sessCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 14 },
   sessName: { fontWeight: "700", color: colors.text },
-  sessDur: { fontWeight: "800", color: colors.text },
+  sessIcon: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  sessDur: { fontWeight: "700", color: colors.text },
   sessMeta: { color: colors.muted, fontSize: 11, marginTop: 4 },
-  eventCard: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 14 },
-  eventUser: { fontWeight: "700", color: colors.text },
+  eventCard: { flexDirection: "row", gap: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 14, ...shadow },
+  eventIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: colors.navy, alignItems: "center", justifyContent: "center" },
+  eventUser: { color: colors.muted, fontSize: 12, marginTop: 2 },
   eventTime: { fontSize: 11, color: colors.faint },
-  eventAction: { color: colors.text, marginTop: 4 },
+  eventAction: { color: colors.text, fontWeight: "600", flex: 1 },
   eventMeta: { color: colors.faint, fontSize: 11, marginTop: 4 },
   moreBtn: { height: 46, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center", marginTop: 6 },
 })

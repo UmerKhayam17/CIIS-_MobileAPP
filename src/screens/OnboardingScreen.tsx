@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react"
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Platform } from "react-native"
+import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Platform, Image } from "react-native"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { Ionicons } from "@expo/vector-icons"
-import { colors, radius } from "../theme"
+import { brand, colors, radius, shadow } from "../theme"
+import { Loading } from "../ui"
 import { fetchMonitorPolicy, policyAllowsCategory, policyAllowsHandset, type MonitorPolicy } from "../lib/call-api"
 import { markOnboardingComplete, optInCategoriesFor, runGuidedConsent } from "../lib/onboarding"
 import { CALL_RECORDING_CATEGORY, callRecordingSupported } from "../lib/call-recording-sync"
@@ -13,6 +15,14 @@ const CATEGORY_LABELS: Record<string, string> = {
   android_call_history: "Call history — numbers, times and durations of calls. No call audio.",
   android_call_recording:
     "Call recordings — the audio files your phone's own dialer saves for work calls. CIIS uploads those files; it does not record calls itself.",
+}
+
+const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  app_usage: "apps-outline",
+  in_app_screens: "image-outline",
+  screen_share: "tv-outline",
+  android_call_history: "call-outline",
+  android_call_recording: "mic-outline",
 }
 
 export default function OnboardingScreen({
@@ -70,71 +80,100 @@ export default function OnboardingScreen({
   if (loading) {
     return (
       <View style={s.center}>
-        <ActivityIndicator color={colors.primary} size="large" />
+        <Loading label="Loading policy" />
       </View>
     )
   }
 
   return (
-    <View style={s.root}>
+    <SafeAreaView style={s.root} edges={["top", "bottom"]}>
       <ScrollView contentContainerStyle={s.content}>
-        <View style={s.logo}>
-          <Ionicons name="shield-checkmark" size={34} color={colors.primary} />
+        <View style={s.hero}>
+          <Image source={brand.crest} style={s.watermark} resizeMode="contain" />
+          <View style={s.heroAccent} />
+          <Text style={s.heroTitle}>Monitoring & privacy</Text>
+          <Text style={s.heroSub}>
+            {brand.org} · {brand.fullName}
+          </Text>
+          <Text style={s.heroMeta}>Please read and accept before CIIS collects anything from this phone.</Text>
         </View>
-        <Text style={s.title}>Monitoring & privacy</Text>
-        <Text style={s.sub}>
-          Please read and accept before CIIS collects anything from this phone.
-        </Text>
 
         {policy ? (
-          <View style={s.card}>
-            {policy.summary ? <Text style={s.summary}>{policy.summary}</Text> : null}
-            {policy.work_hours ? <Text style={s.meta}>Work hours: {policy.work_hours}</Text> : null}
-            {policy.contact ? <Text style={s.meta}>Questions: {policy.contact}</Text> : null}
-          </View>
+          policy.summary || policy.work_hours || policy.contact ? (
+            <View style={s.card}>
+              {policy.summary ? <Text style={s.cardText}>{policy.summary}</Text> : null}
+              {policy.work_hours ? <InfoLine icon="time-outline" label="Work hours" value={policy.work_hours} /> : null}
+              {policy.contact ? <InfoLine icon="person-outline" label="Questions" value={policy.contact} /> : null}
+            </View>
+          ) : null
         ) : (
-          <View style={s.card}>
-            <Text style={s.meta}>Monitoring is not set up on this deployment yet.</Text>
+          <View style={[s.statusCard, { borderColor: colors.border, backgroundColor: colors.chipBg }]}>
+            <Ionicons name="construct-outline" size={20} color={colors.muted} />
+            <Text style={{ color: colors.muted, flex: 1 }}>Monitoring is not set up on this deployment yet.</Text>
           </View>
         )}
 
         {activeKeys.length ? (
           <View style={s.card}>
-            <Text style={s.cardTitle}>By accepting, you agree to share:</Text>
+            <Text style={s.cardHead}>By accepting, you agree to share</Text>
             {activeKeys.map((k) => (
-              <View key={k} style={s.bullet}>
-                <Ionicons name="checkmark-circle" size={18} color={colors.good} />
-                <Text style={s.bulletText}>{CATEGORY_LABELS[k] || k}</Text>
+              <View key={k} style={s.line}>
+                <Ionicons name={CATEGORY_ICONS[k] || "checkmark-circle-outline"} size={18} color={colors.gold} style={{ marginTop: 1 }} />
+                <Text style={s.lineText}>{CATEGORY_LABELS[k] || k}</Text>
               </View>
             ))}
-            <Text style={s.note}>
-              After you accept, Android will ask you to allow call history and to turn on Usage access
-              for app usage{wantsRecordings ? ", and to pick the folder your phone saves call recordings to" : ""}.
-              These are one-time steps you control, and you can turn any of them off later in Settings.
-            </Text>
           </View>
         ) : (
-          <View style={s.card}>
-            <Text style={s.meta}>
+          <View style={[s.statusCard, { borderColor: "#bbf7d0", backgroundColor: colors.goodBg }]}>
+            <Ionicons name="checkmark-circle" size={20} color={colors.good} />
+            <Text style={{ color: "#14532d", flex: 1 }}>
               No optional monitoring is enabled right now. You can continue; nothing extra is collected.
             </Text>
           </View>
         )}
 
-        {error ? <Text style={s.error}>{error}</Text> : null}
+        {activeKeys.length ? (
+          <Text style={s.note}>
+            After you accept, Android will ask you to allow call history and to turn on Usage access
+            for app usage{wantsRecordings ? ", and to pick the folder your phone saves call recordings to" : ""}.
+            These are one-time steps you control, and you can turn any of them off later in Settings.
+          </Text>
+        ) : null}
+
+        {error ? (
+          <View style={[s.statusCard, { borderColor: "#fecaca", backgroundColor: colors.badBg }]}>
+            <Ionicons name="alert-circle" size={20} color={colors.bad} />
+            <Text style={{ color: "#991b1b", flex: 1 }}>{error}</Text>
+          </View>
+        ) : null}
       </ScrollView>
 
       <View style={s.footer}>
         <Pressable style={[s.primary, busy && s.disabled]} onPress={accept} disabled={busy}>
           {busy ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.navy} />
           ) : (
-            <Text style={s.primaryText}>{activeKeys.length ? "Accept & continue" : "Continue"}</Text>
+            <>
+              <Ionicons name="checkmark" size={18} color={colors.navy} />
+              <Text style={s.primaryText}>{activeKeys.length ? "Accept & continue" : "Continue"}</Text>
+            </>
           )}
         </Pressable>
-        <Pressable style={s.secondary} onPress={skip} disabled={busy}>
+        <Pressable style={[s.secondary, busy && s.disabled]} onPress={skip} disabled={busy}>
           <Text style={s.secondaryText}>Not now</Text>
         </Pressable>
+      </View>
+    </SafeAreaView>
+  )
+}
+
+function InfoLine({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
+  return (
+    <View style={{ flexDirection: "row", gap: 10, alignItems: "flex-start", paddingVertical: 2 }}>
+      <Ionicons name={icon} size={16} color={colors.gold} style={{ marginTop: 2 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={s.infoLabel}>{label}</Text>
+        <Text style={s.infoValue}>{value}</Text>
       </View>
     </View>
   )
@@ -142,23 +181,44 @@ export default function OnboardingScreen({
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
-  content: { padding: 20, paddingBottom: 24, gap: 14 },
-  logo: { alignSelf: "center", marginTop: 12 },
-  title: { fontSize: 24, fontWeight: "800", color: colors.text, textAlign: "center" },
-  sub: { fontSize: 14, color: colors.muted, textAlign: "center", marginBottom: 4 },
-  card: { backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 8 },
-  cardTitle: { fontSize: 15, fontWeight: "800", color: colors.text, marginBottom: 4 },
-  summary: { fontSize: 14, color: colors.text, lineHeight: 20 },
-  meta: { fontSize: 13, color: colors.muted },
-  bullet: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
-  bulletText: { flex: 1, fontSize: 14, color: colors.text, lineHeight: 20 },
-  note: { fontSize: 12, color: colors.muted, lineHeight: 18, marginTop: 6 },
-  error: { color: "#b91c1c", fontSize: 14, textAlign: "center" },
-  footer: { padding: 20, gap: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.card },
-  primary: { backgroundColor: colors.primary, borderRadius: radius.lg, paddingVertical: 15, alignItems: "center" },
-  primaryText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  center: { flex: 1, justifyContent: "center", backgroundColor: colors.bg },
+  content: { padding: 16, paddingBottom: 24, gap: 14 },
+  hero: { backgroundColor: colors.navy, borderRadius: radius.lg, padding: 18, overflow: "hidden", ...shadow },
+  heroAccent: { position: "absolute", left: 0, top: 0, bottom: 0, width: 4, backgroundColor: colors.gold },
+  watermark: { position: "absolute", right: -40, top: 8, width: 200, height: 100, opacity: 0.08 },
+  heroTitle: { color: "#fff", fontSize: 22, fontWeight: "700" },
+  heroSub: { color: colors.goldLight, fontSize: 12, fontWeight: "700", marginTop: 2 },
+  heroMeta: { color: "rgba(255,255,255,0.7)", fontSize: 13, marginTop: 8, lineHeight: 19 },
+  statusCard: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: radius.md, padding: 14 },
+  card: { backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 10, ...shadow },
+  cardHead: { fontSize: 12, fontWeight: "700", color: colors.muted, textTransform: "uppercase", letterSpacing: 1 },
+  cardText: { color: colors.text, lineHeight: 21 },
+  infoLabel: { color: colors.muted, fontSize: 12 },
+  infoValue: { color: colors.text, fontWeight: "600", marginTop: 1 },
+  line: { flexDirection: "row", gap: 10, alignItems: "flex-start", paddingVertical: 3 },
+  lineText: { flex: 1, color: colors.text, lineHeight: 20 },
+  note: { color: colors.muted, fontSize: 13, lineHeight: 19, paddingHorizontal: 4 },
+  footer: { padding: 16, gap: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.card },
+  primary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: colors.gold,
+    borderRadius: radius.md,
+    height: 52,
+  },
+  primaryText: { color: colors.navy, fontWeight: "700", fontSize: 16 },
   disabled: { opacity: 0.6 },
-  secondary: { paddingVertical: 10, alignItems: "center" },
-  secondaryText: { color: colors.muted, fontWeight: "700", fontSize: 14 },
+  secondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    height: 48,
+  },
+  secondaryText: { color: colors.muted, fontWeight: "700", fontSize: 15 },
 })
