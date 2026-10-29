@@ -7,7 +7,7 @@ export type NativeCall = {
   number: string
   /** Raw CallLog.Calls.TYPE int. */
   type: number
-  direction: "inbound" | "outbound" | "missed" | "rejected" | "unknown"
+  direction: "inbound" | "outbound" | "missed" | "unknown"
   /** Epoch milliseconds. */
   timestamp: number
   /** Call length in seconds. */

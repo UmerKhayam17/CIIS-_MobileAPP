@@ -73,8 +73,11 @@ class CallLogModule : Module() {
   private fun directionOf(type: Int): String = when (type) {
     CallLog.Calls.INCOMING_TYPE -> "inbound"
     CallLog.Calls.OUTGOING_TYPE -> "outbound"
+    // Backend + app vocabulary is inbound/outbound/missed/unknown only. A rejected/declined
+    // incoming call is reported as "missed" so it stays within the allowed choices; anything
+    // else (voicemail, blocked, answered-externally) falls through to "unknown".
     CallLog.Calls.MISSED_TYPE -> "missed"
-    CallLog.Calls.REJECTED_TYPE -> "rejected"
+    CallLog.Calls.REJECTED_TYPE -> "missed"
     else -> "unknown"
   }
 }
