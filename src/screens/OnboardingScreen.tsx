@@ -14,7 +14,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   screen_share: "Screen share — only when you start it yourself.",
   android_call_history: "Call history — numbers, times and durations of calls. No call audio.",
   android_call_recording:
-    "Call recordings — the audio files your phone's own dialer saves for work calls. CIIS uploads those files; it does not record calls itself.",
+    "Call recordings — the audio files your phone's own dialer saves for work calls. After you allow audio access, CIIS finds that folder itself and uploads those files. It does not record calls itself.",
 }
 
 const CATEGORY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -135,7 +135,7 @@ export default function OnboardingScreen({
         {activeKeys.length ? (
           <Text style={s.note}>
             After you accept, Android will ask you to allow call history and to turn on Usage access
-            for app usage{wantsRecordings ? ", and to pick the folder your phone saves call recordings to" : ""}.
+            for app usage{wantsRecordings ? ", and to allow audio access so CIIS can find this phone's call recordings" : ""}.
             These are one-time steps you control, and you can turn any of them off later in Settings.
           </Text>
         ) : null}

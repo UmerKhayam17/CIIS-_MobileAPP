@@ -21,6 +21,7 @@ import {
   CALL_RECORDING_CATEGORY,
   callRecordingSupported,
   recordingFolderUri,
+  requestRecordingAccess,
   requestRecordingFolder,
   syncCallRecordings,
 } from "../lib/call-recording-sync"
@@ -224,9 +225,9 @@ function MonitoringSection() {
       await setConsentCategory(policy!, CALL_RECORDING_CATEGORY, value)
       setRecOn(value)
       if (value) {
-        const folder = recordingFolderUri() ?? (await requestRecordingFolder())
-        setRecFolder(folder)
-        if (!folder) setNote("Choose the folder your phone's dialer saves call recordings to.")
+        const allowed = await requestRecordingAccess()
+        setRecFolder(recordingFolderUri())
+        if (!allowed) setNote("Allow audio access so CIIS can find this phone's call recordings.")
         else await runRecordingSync()
       }
     } catch (err) {
@@ -344,7 +345,7 @@ function MonitoringSection() {
           detail={
             !callRecordingSupported()
               ? "Android only, in the full app."
-              : "Uploads the recordings your phone's own dialer saves, for calls after you turn this on. CIIS never records calls itself."
+              : "After you allow audio access, CIIS finds the recordings your phone's dialer already saves and uploads calls from then on. CIIS never records calls itself."
           }
           value={recOn}
           disabled={busy || !callRecordingSupported()}
@@ -354,16 +355,14 @@ function MonitoringSection() {
 
       {recOn && callRecordingSupported() ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <Pressable style={s.secondaryBtn} onPress={() => void runRecordingSync()} disabled={busy}>
+            <Ionicons name="cloud-upload-outline" size={16} color={colors.primary} />
+            <Text style={s.secondaryText}>Sync now</Text>
+          </Pressable>
           <Pressable style={s.secondaryBtn} onPress={() => void chooseRecordingFolder()} disabled={busy}>
             <Ionicons name="folder-open-outline" size={16} color={colors.primary} />
-            <Text style={s.secondaryText}>{recFolder ? "Change folder" : "Choose recordings folder"}</Text>
+            <Text style={s.secondaryText}>{recFolder ? "Change folder" : "Pick folder if not found"}</Text>
           </Pressable>
-          {recFolder ? (
-            <Pressable style={s.secondaryBtn} onPress={() => void runRecordingSync()} disabled={busy}>
-              <Ionicons name="cloud-upload-outline" size={16} color={colors.primary} />
-              <Text style={s.secondaryText}>Sync now</Text>
-            </Pressable>
-          ) : null}
         </View>
       ) : null}
 
@@ -381,9 +380,10 @@ function recordingSyncMessage(uploaded: number, skipped: string): string {
   if (uploaded > 0) return `Uploaded ${uploaded} call recording${uploaded === 1 ? "" : "s"}.`
   switch (skipped) {
     case "":
-      return "No new recordings found in that folder for calls since you turned this on. Make sure your dialer's call recording is on, then make a call."
+      return "No new call recordings found on this phone since you turned this on. Turn on call recording in the phone dialer, then make a call."
     case "folder":
-      return "Choose the folder your phone's dialer saves call recordings to."
+    case "permission":
+      return "Allow audio access so CIIS can find this phone's call recordings."
     case "consent":
       return "Turn on Call recordings first."
     case "policy":

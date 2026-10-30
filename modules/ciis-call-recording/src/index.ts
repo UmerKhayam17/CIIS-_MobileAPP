@@ -14,6 +14,8 @@ export type RecordingFile = {
 type CiisCallRecordingNative = {
   /** The persisted tree uri the user granted, or null if none/again-revoked. */
   getFolderUri(): string | null
+  /** True when this app may read audio files the media library already indexed. */
+  hasAudioAccess(): boolean
   /** Launch the Android folder picker; resolves to the granted tree uri, or null if cancelled. */
   requestFolderAccess(): Promise<string | null>
   /** Audio files in the granted folder modified at/after sinceMillis (newest first). */

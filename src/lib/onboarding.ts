@@ -23,8 +23,8 @@ import {
 import {
   CALL_RECORDING_CATEGORY,
   callRecordingSupported,
-  recordingFolderUri,
-  requestRecordingFolder,
+  recordingAccessGranted,
+  requestRecordingAccess,
   syncCallRecordings,
 } from "./call-recording-sync"
 
@@ -111,15 +111,15 @@ export async function runGuidedConsent(policy?: MonitorPolicy | null): Promise<G
     }
   }
 
-  // 3) Call recordings — ask the officer to point CIIS at the folder their dialer saves to.
+  // 3) Call recordings — one audio grant; CIIS then finds the dialer's folder itself.
   if (wantsRecordings) {
     if (!callRecordingSupported()) {
       result.callRecording = "unavailable"
-    } else if (recordingFolderUri()) {
+    } else if (recordingAccessGranted()) {
       result.callRecording = "granted"
     } else {
-      const uri = await requestRecordingFolder()
-      result.callRecording = uri ? "granted" : "needs-folder"
+      const allowed = await requestRecordingAccess()
+      result.callRecording = allowed ? "granted" : "needs-folder"
     }
   }
 

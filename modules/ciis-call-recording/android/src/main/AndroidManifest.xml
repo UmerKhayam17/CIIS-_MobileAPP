@@ -1,3 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  <!-- No storage permission needed: access is granted per-folder by the user via SAF. -->
+  <!-- One audio grant lets the module find the dialer's call-recording files. The folder picker remains a fallback. -->
+  <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 </manifest>

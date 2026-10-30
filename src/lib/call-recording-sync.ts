@@ -1,4 +1,4 @@
-import { Platform } from "react-native"
+import { PermissionsAndroid, Platform } from "react-native"
 import { loadCallRecordingModule, type RecordingFile } from "../../modules/ciis-call-recording/src"
 import { isNetworkError } from "./api"
 import { getItem, setItem } from "./storage"
@@ -34,6 +34,48 @@ export async function requestRecordingFolder(): Promise<string | null> {
   return native.requestFolderAccess()
 }
 
+const READ_MEDIA_AUDIO = "android.permission.READ_MEDIA_AUDIO"
+const READ_EXTERNAL_STORAGE = "android.permission.READ_EXTERNAL_STORAGE"
+
+function audioPermission(): typeof READ_MEDIA_AUDIO | typeof READ_EXTERNAL_STORAGE {
+  return Number(Platform.Version) >= 33 ? READ_MEDIA_AUDIO : READ_EXTERNAL_STORAGE
+}
+
+function hasAudioAccess(): boolean {
+  const native = loadCallRecordingModule()
+  if (!native) return false
+  try {
+    return native.hasAudioAccess()
+  } catch {
+    return false
+  }
+}
+
+/** True when a folder was picked, or Android audio access is already granted. */
+export function recordingAccessGranted(): boolean {
+  const native = loadCallRecordingModule()
+  if (!native) return false
+  return native.getFolderUri() != null || hasAudioAccess()
+}
+
+/**
+ * Ask once for audio access so CIIS can find the dialer's call-recording files itself.
+ * Resolves true when access is already held or the officer allows it.
+ */
+export async function requestRecordingAccess(): Promise<boolean> {
+  const native = loadCallRecordingModule()
+  if (!native || Platform.OS !== "android") return false
+  if (native.getFolderUri() || hasAudioAccess()) return true
+  const result = await PermissionsAndroid.request(audioPermission(), {
+    title: "Call recordings",
+    message:
+      "CIIS finds the call recordings your phone's dialer already saves and uploads them after you allow this. CIIS does not record calls itself.",
+    buttonPositive: "Allow",
+    buttonNegative: "Don't allow",
+  })
+  return result === PermissionsAndroid.RESULTS.GRANTED
+}
+
 async function readSynced(): Promise<Set<string>> {
   try {
     const raw = await getItem(SYNCED_KEY)
@@ -67,15 +109,15 @@ function mimeFor(file: RecordingFile): string {
 
 /**
  * Upload the recordings the phone's own dialer made, for calls at/after consent. Only runs when
- * this Android build supports it, a folder has been granted, the policy collects the category and
- * the user's current consent discloses it. The app never records a call itself.
+ * this Android build supports it, audio access or a folder has been granted, the policy collects
+ * the category and the user's current consent discloses it. The app never records a call itself.
  */
 export async function syncCallRecordings(): Promise<{ uploaded: number; skipped: string }> {
   if (syncing) return { uploaded: 0, skipped: "busy" }
   if (Platform.OS === "ios") return { uploaded: 0, skipped: "ios" }
   const native = loadCallRecordingModule()
   if (!native) return { uploaded: 0, skipped: "build" }
-  if (!native.getFolderUri()) return { uploaded: 0, skipped: "folder" }
+  if (!native.getFolderUri() && !hasAudioAccess()) return { uploaded: 0, skipped: "permission" }
 
   syncing = true
   try {
